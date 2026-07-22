@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import pandas as pd
 
-from dart_api import DB_PATH, get_db, init_db
+from dart_api import get_db, init_db
 
-# DART 계정명 후보 (회사마다 표기가 조금씩 다를 수 있음)
 ACCOUNT_ALIASES = {
     "current_assets": ["유동자산"],
     "current_liabilities": ["유동부채"],
@@ -20,8 +19,11 @@ ACCOUNT_ALIASES = {
     "operating_profit": ["영업이익", "영업이익(손실)"],
     "net_income": ["당기순이익", "당기순이익(손실)", "분기순이익"],
     "cash": ["현금및현금성자산", "현금 및 현금성 자산"],
+    "short_term_financial": ["단기금융상품", "단기금융자산", "단기투자자산"],
     "receivables": ["매출채권", "매출채권 및 기타유동채권"],
-    "prev_revenue": [],
+    "operating_cash_flow": ["영업활동현금흐름", "영업활동으로인한현금흐름"],
+    "advances": ["선수금", "선수수익", "계약부채"],
+    "sga": ["판매비와관리비", "판매비와관리비(일반)", "판매비와관리비 및 기타판매비와관리비"],
 }
 
 
@@ -33,6 +35,10 @@ def _pick_amount(df: pd.DataFrame, aliases: list[str]) -> float | None:
         if not matched.empty:
             return float(matched.iloc[0]["amount"])
     return None
+
+
+def _extract_accounts(group: pd.DataFrame) -> dict[str, float | None]:
+    return {key: _pick_amount(group, aliases) for key, aliases in ACCOUNT_ALIASES.items()}
 
 
 def load_financial_metrics(bsns_year: str, prev_year: str | None = None) -> pd.DataFrame:
@@ -69,55 +75,83 @@ def load_financial_metrics(bsns_year: str, prev_year: str | None = None) -> pd.D
         corp_name = group.iloc[0]["corp_name"]
         prev_group = prev[prev["stock_code"] == stock_code] if not prev.empty else pd.DataFrame()
 
-        current_assets = _pick_amount(group, ACCOUNT_ALIASES["current_assets"])
-        current_liabilities = _pick_amount(group, ACCOUNT_ALIASES["current_liabilities"])
-        inventory = _pick_amount(group, ACCOUNT_ALIASES["inventory"])
-        total_liabilities = _pick_amount(group, ACCOUNT_ALIASES["total_liabilities"])
-        total_equity = _pick_amount(group, ACCOUNT_ALIASES["total_equity"])
-        total_assets = _pick_amount(group, ACCOUNT_ALIASES["total_assets"])
-        revenue = _pick_amount(group, ACCOUNT_ALIASES["revenue"])
-        cogs = _pick_amount(group, ACCOUNT_ALIASES["cogs"])
-        gross_profit = _pick_amount(group, ACCOUNT_ALIASES["gross_profit"])
-        operating_profit = _pick_amount(group, ACCOUNT_ALIASES["operating_profit"])
-        net_income = _pick_amount(group, ACCOUNT_ALIASES["net_income"])
-        cash = _pick_amount(group, ACCOUNT_ALIASES["cash"])
-        receivables = _pick_amount(group, ACCOUNT_ALIASES["receivables"])
-        prev_revenue = _pick_amount(prev_group, ACCOUNT_ALIASES["revenue"]) if not prev_group.empty else None
+        a = _extract_accounts(group)
+        p = _extract_accounts(prev_group) if not prev_group.empty else {}
 
-        if gross_profit is None and revenue is not None and cogs is not None:
-            gross_profit = revenue - cogs
+        gross_profit = a["gross_profit"]
+        if gross_profit is None and a["revenue"] is not None and a["cogs"] is not None:
+            gross_profit = a["revenue"] - a["cogs"]
+
+        cash_total = _sum_non_null(a["cash"], a["short_term_financial"])
+        revenue = a["revenue"]
+        net_income = a["net_income"]
+        sga = a["sga"]
+        sga_ratio = _pct_ratio(sga, revenue)
+        prev_sga_ratio = _pct_ratio(p.get("sga"), p.get("revenue"))
+        revenue_growth = _growth(revenue, p.get("revenue"))
+        debt_growth = _growth(a["total_liabilities"], p.get("total_liabilities"))
 
         metrics = {
             "stock_code": stock_code,
             "corp_name": corp_name,
             "revenue": revenue,
-            "operating_profit": operating_profit,
+            "operating_profit": a["operating_profit"],
             "net_income": net_income,
-            "current_ratio": _pct_ratio(current_assets, current_liabilities),
+            # B경제
+            "cash_survival_years": _cash_survival_years(cash_total, net_income),
+            "inventory_months": _inventory_months(a["inventory"], a["cogs"]),
+            "cash_flow_match": _ratio(a["operating_cash_flow"], net_income),
+            "cash_to_revenue": _pct_ratio(cash_total, revenue),
+            "cash_to_op_profit_x3": _pct_ratio(cash_total, (a["operating_profit"] or 0) * 3 if a["operating_profit"] else None),
+            "happy_debt_growth": _growth(a["advances"], p.get("advances")),
+            "sga_ratio": sga_ratio,
+            "sga_ratio_change": (sga_ratio - prev_sga_ratio) if sga_ratio is not None and prev_sga_ratio is not None else None,
+            # 안전성
+            "current_ratio": _pct_ratio(a["current_assets"], a["current_liabilities"]),
             "quick_ratio": _pct_ratio(
-                (current_assets - inventory) if current_assets is not None and inventory is not None else None,
-                current_liabilities,
+                (a["current_assets"] - a["inventory"]) if a["current_assets"] is not None and a["inventory"] is not None else None,
+                a["current_liabilities"],
             ),
-            "debt_ratio": _pct_ratio(total_liabilities, total_equity),
+            "debt_ratio": _pct_ratio(a["total_liabilities"], a["total_equity"]),
+            "cash_months": _cash_months_sga(cash_total, sga),
+            # 수익/성장성
+            "revenue_growth": revenue_growth,
             "gross_margin": _pct_ratio(gross_profit, revenue),
-            "operating_margin": _pct_ratio(operating_profit, revenue),
+            "operating_margin": _pct_ratio(a["operating_profit"], revenue),
             "net_margin": _pct_ratio(net_income, revenue),
-            "roa": _pct_ratio(net_income, total_assets),
-            "roe": _pct_ratio(net_income, total_equity),
-            "inventory_turnover": _turnover(cogs, inventory),
-            "receivable_turnover": _turnover(revenue, receivables),
-            "revenue_growth": _growth(revenue, prev_revenue),
-            "cash_months": _cash_months(cash, operating_profit),
+            # 효율성
+            "roa": _pct_ratio(net_income, a["total_assets"]),
+            "roe": _pct_ratio(net_income, a["total_equity"]),
+            "inventory_turnover": _turnover(revenue, a["inventory"]),
+            "receivable_turnover": _turnover(revenue, a["receivables"]),
+            # check!!
+            "debt_growth": debt_growth,
+            "revenue_minus_debt_growth": (
+                revenue_growth - debt_growth
+                if revenue_growth is not None and debt_growth is not None
+                else None
+            ),
         }
         rows.append(metrics)
 
     return pd.DataFrame(rows)
 
 
+def _sum_non_null(*values: float | None) -> float | None:
+    nums = [v for v in values if v is not None]
+    return sum(nums) if nums else None
+
+
 def _pct_ratio(numerator: float | None, denominator: float | None) -> float | None:
     if numerator is None or denominator in (None, 0):
         return None
     return numerator / denominator * 100
+
+
+def _ratio(numerator: float | None, denominator: float | None) -> float | None:
+    if numerator is None or denominator in (None, 0):
+        return None
+    return numerator / denominator
 
 
 def _turnover(numerator: float | None, denominator: float | None) -> float | None:
@@ -132,13 +166,22 @@ def _growth(current: float | None, previous: float | None) -> float | None:
     return (current - previous) / abs(previous) * 100
 
 
-def _cash_months(cash: float | None, operating_profit: float | None) -> float | None:
-    """현금 / 월간 영업비용(영업이익이 음수면 절대값 기준 근사)."""
-    if cash is None:
+def _cash_survival_years(cash_total: float | None, net_income: float | None) -> float | None:
+    """(현금+단기금융) / 당기순손실 → 버틸 수 있는 연수."""
+    if cash_total is None or net_income is None or net_income >= 0:
         return None
-    monthly_burn = None
-    if operating_profit is not None and operating_profit < 0:
-        monthly_burn = abs(operating_profit) / 12
-    if monthly_burn in (None, 0):
+    return cash_total / abs(net_income)
+
+
+def _inventory_months(inventory: float | None, cogs: float | None) -> float | None:
+    """재고자산 / 월매출원가 → 재고 보유 월수."""
+    if inventory is None or cogs in (None, 0):
         return None
-    return cash / monthly_burn
+    return inventory / (cogs / 12)
+
+
+def _cash_months_sga(cash_total: float | None, sga: float | None) -> float | None:
+    """현금성자산 / 월 판관비."""
+    if cash_total is None or sga in (None, 0):
+        return None
+    return cash_total / (sga / 12)

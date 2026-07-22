@@ -5,7 +5,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 import os
@@ -17,10 +16,12 @@ from dart_api import DartClient, load_listed_corps  # noqa: E402
 from metrics import load_financial_metrics  # noqa: E402
 from price import fetch_price_metrics, load_price_metrics, save_price_metrics  # noqa: E402
 from screener import (  # noqa: E402
+    FILTER_CATEGORIES,
     SORT_LABELS,
     apply_range_filters,
     format_display_df,
     merge_financial_and_price,
+    render_filter_group,
     sort_dataframe,
 )
 
@@ -39,7 +40,7 @@ def get_api_key() -> str:
 API_KEY = get_api_key()
 
 st.title("📊 국내 상장주 스크리너")
-st.caption("재무 건전성으로 1차 필터 → 바닥권 종목 위주로 2차 필터")
+st.caption("재무 건전성 1차 필터 → 바닥권 종목 2차 필터")
 
 if not API_KEY:
     st.error("DART API 키가 없습니다. 로컬은 `.env`, 클라우드는 Streamlit Secrets에 `DART_API_KEY`를 설정하세요.")
@@ -50,8 +51,8 @@ client = DartClient(API_KEY)
 with st.sidebar:
     st.header("데이터 설정")
     market = st.selectbox("시장", ["ALL", "KOSPI", "KOSDAQ"])
-    bsns_year = st.text_input("사업연도", value="2023")
-    prev_year = st.text_input("전년도 (성장률용)", value="2022")
+    bsns_year = st.text_input("사업연도", value="2025")
+    prev_year = st.text_input("전년도 (성장률·비교용)", value="2024")
 
     st.divider()
     st.subheader("데이터 동기화")
@@ -78,9 +79,10 @@ with st.sidebar:
                 bar.progress(cur / total)
                 status.text(f"{cur}/{total} {name}")
 
-            with st.spinner("DART 재무제표 수집 중..."):
-                saved = client.sync_financials(codes, bsns_year, on_progress)
-            st.success(f"{saved}개 종목 재무제표 저장 ({bsns_year}년)")
+            with st.spinner(f"재무제표 수집 중 ({prev_year}, {bsns_year})..."):
+                saved_prev = client.sync_financials(codes, prev_year, on_progress)
+                saved_cur = client.sync_financials(codes, bsns_year, on_progress)
+            st.success(f"{saved_cur}개 종목 저장 ({prev_year}→{bsns_year})")
 
     if st.button("3) 주가/바닥지표 불러오기", use_container_width=True):
         fin = load_financial_metrics(bsns_year, prev_year)
@@ -103,91 +105,38 @@ with st.sidebar:
 
 st.subheader("필터 조건")
 
-tab_fin, tab_price, tab_abs, tab_sort = st.tabs(
-    ["재무 비율", "바닥 위치 (주가)", "절대 금액", "정렬"]
-)
-
+category_names = list(FILTER_CATEGORIES.keys()) + ["절대 금액", "정렬"]
+tabs = st.tabs(category_names)
 filters: dict[str, tuple[float | None, float | None]] = {}
 
-with tab_fin:
-    st.markdown("**재무 비율** — 체크한 항목만 필터 적용")
-    fin_items = [
-        ("current_ratio", "유동비율 (%)", "100 이상 권장"),
-        ("quick_ratio", "당좌비율 (%)", "70 이상 권장"),
-        ("debt_ratio", "부채비율 (%)", "낮을수록 안전. 50 이하 등"),
-        ("revenue_growth", "매출성장률 (%)", ""),
-        ("gross_margin", "매출총이익률 (%)", ""),
-        ("operating_margin", "영업이익률 (%)", ""),
-        ("net_margin", "당기순이익률 (%)", ""),
-        ("roa", "ROA (%)", ""),
-        ("roe", "ROE (%)", ""),
-        ("inventory_turnover", "재고자산회전율", ""),
-        ("receivable_turnover", "매출채권회전율", ""),
-        ("cash_months", "현금규모 (개월)", "현금 / 월간 소진"),
-    ]
-    cols = st.columns(3)
-    for i, (key, label, help_text) in enumerate(fin_items):
-        with cols[i % 3]:
-            if st.checkbox(label, key=f"fin_{key}"):
-                c1, c2 = st.columns(2)
-                with c1:
-                    lo = st.number_input("최소", key=f"fin_{key}_lo", help=help_text)
-                with c2:
-                    hi = st.number_input("최대", key=f"fin_{key}_hi")
-                filters[key] = (lo, hi if hi != 0 else None)
+for tab, category in zip(tabs[:-2], FILTER_CATEGORIES):
+    with tab:
+        st.markdown(f"**{category}** — 체크한 항목만 필터 적용")
+        render_filter_group(filters, category, FILTER_CATEGORIES[category], category[:4])
 
-with tab_price:
-    st.markdown(
-        """
-        **바닥 다진 종목** 찾기용 지표입니다.
-        - **저점대비상승(%)**: 52주 최저가 대비 몇 % 올랐는지. **낮을수록** 바닥 근처
-        - **52주위치(%)**: 저점~고점 구간에서 현재 위치. **0%에 가까울수록** 바닥
-        - **바닥체류(%)**: 최근 120일 중 하위 25% 구간에 머문 비율. **높을수록** 오랫동안 바닥권
-        """
-    )
-    price_items = [
-        ("pct_from_low", "저점대비상승 (%)", "예: 0 ~ 15 (바닥에서 조금만 오른 종목)"),
-        ("range_position", "52주위치 (%)", "예: 0 ~ 30 (구간 하단)"),
-        ("bottom_dwell_ratio", "바닥체류 (%)", "예: 60 이상 (오래 바닥권)"),
-    ]
-    for key, label, help_text in price_items:
-        if st.checkbox(label, key=f"px_{key}"):
+with tabs[-2]:
+    st.markdown("**절대 금액** — 매출액·영업이익·당기순이익")
+    abs_items = [("revenue", "매출액", ""), ("operating_profit", "영업이익", ""), ("net_income", "당기순이익", "")]
+    for key, label, help_text in abs_items:
+        if st.checkbox(label, key=f"abs_{key}"):
+            unit = st.selectbox("단위", ["억원", "조원"], key=f"abs_{key}_unit")
+            multiplier = 1e8 if unit == "억원" else 1e12
             c1, c2 = st.columns(2)
             with c1:
-                lo = st.number_input("최소", key=f"px_{key}_lo", help=help_text)
-            with c2:
-                hi = st.number_input("최대", key=f"px_{key}_hi")
-            filters[key] = (lo, hi if hi != 0 else None)
-
-with tab_abs:
-    st.markdown("**절대 금액** 필터 — 매출액·영업이익·당기순이익 (단위: 원)")
-    abs_items = [
-        ("revenue", "매출액"),
-        ("operating_profit", "영업이익"),
-        ("net_income", "당기순이익"),
-    ]
-    c1, c2, c3 = st.columns(3)
-    for col, (key, label) in zip([c1, c2, c3], abs_items):
-        with col:
-            if st.checkbox(label, key=f"abs_{key}"):
-                unit = st.selectbox("단위", ["억원", "조원"], key=f"abs_{key}_unit")
-                multiplier = 1e8 if unit == "억원" else 1e12
                 lo = st.number_input("최소", key=f"abs_{key}_lo", value=0.0)
+            with c2:
                 hi = st.number_input("최대", key=f"abs_{key}_hi", value=0.0)
-                filters[key] = (
-                    lo * multiplier if lo else None,
-                    hi * multiplier if hi else None,
-                )
+            filters[key] = (lo * multiplier if lo else None, hi * multiplier if hi else None)
 
 sort_rules: list[tuple[str, bool]] = []
-with tab_sort:
-    st.markdown("정렬 기준을 최대 3개까지 지정 (위에서부터 우선순위)")
+with tabs[-1]:
+    st.markdown("정렬 기준 최대 3개 (위에서부터 우선순위)")
     sort_options = list(SORT_LABELS.keys())
     for i in range(3):
         c1, c2 = st.columns([3, 1])
         with c1:
             col = st.selectbox(
-                f"정렬 {i+1}",
+                f"정렬 {i + 1}",
                 [""] + sort_options,
                 format_func=lambda x: "— 선택 —" if x == "" else SORT_LABELS.get(x, x),
                 key=f"sort_col_{i}",
@@ -211,44 +160,26 @@ if st.button("🔍 스크리닝 실행", type="primary", use_container_width=Tru
         st.subheader(f"결과: {len(filtered)}종목 / 전체 {len(merged)}종목")
 
         show_cols = [
-            "corp_name",
-            "stock_code",
-            "current_ratio",
-            "quick_ratio",
-            "debt_ratio",
-            "roe",
-            "revenue",
-            "operating_profit",
-            "net_income",
-            "pct_from_low",
-            "range_position",
-            "bottom_dwell_ratio",
-            "current_price",
+            "corp_name", "stock_code",
+            "cash_survival_years", "current_ratio", "quick_ratio", "debt_ratio",
+            "revenue_growth", "roe", "revenue_minus_debt_growth",
+            "pct_from_low", "range_position", "bottom_dwell_ratio",
+            "revenue", "operating_profit", "net_income", "current_price",
         ]
         show_cols = [c for c in show_cols if c in filtered.columns]
         display = format_display_df(filtered[show_cols])
-        display = display.rename(columns={k: SORT_LABELS.get(k, k) for k in display.columns if k in SORT_LABELS})
-        display = display.rename(columns={"corp_name": "종목명", "stock_code": "종목코드"})
+        rename_map = {k: SORT_LABELS.get(k, k) for k in display.columns if k in SORT_LABELS}
+        rename_map.update({"corp_name": "종목명", "stock_code": "종목코드"})
+        display = display.rename(columns=rename_map)
 
         st.dataframe(display, use_container_width=True, hide_index=True)
 
         csv = filtered.to_csv(index=False).encode("utf-8-sig")
         st.download_button("CSV 다운로드", csv, file_name="screener_result.csv", mime="text/csv")
 
-with st.expander("사용 팁"):
-    st.markdown(
-        """
-        ### 바닥 다진 종목 찾기 예시
-        1. 재무: ROE 10% 이상, 부채비율 50% 이하
-        2. 바닥: 저점대비상승 0~20%, 52주위치 0~30%, 바닥체류 50% 이상
-        3. 정렬: 바닥체류 내림차순 → ROE 내림차순
-
-        ### 데이터 주기
-        - 재무: 연간 (사업보고서 기준)
-        - 주가: 최근 52주 일봉 기준
-
-        ### API 키 보안
-        - `.env` 파일에만 저장하고 Git에 올리지 마세요
-        - 채팅에 노출된 키는 DART에서 재발급을 권장합니다
-        """
-    )
+with st.expander("지표 설명"):
+    for category, items in FILTER_CATEGORIES.items():
+        st.markdown(f"**{category}**")
+        for _, label, help_text in items:
+            if help_text:
+                st.markdown(f"- {label}: {help_text}")
