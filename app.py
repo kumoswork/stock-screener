@@ -6,6 +6,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
+import pandas as pd
 import streamlit as st
 
 SRC_DIR = Path(__file__).resolve().parent / "src"
@@ -26,6 +27,7 @@ from screener import (  # noqa: E402
     merge_financial_and_price,
     render_sidebar_filters,
     sort_dataframe,
+    split_filters,
 )
 from snapshot import financials_exists, financials_meta, load_financials  # noqa: E402
 
@@ -50,7 +52,6 @@ if not financials_exists():
     st.error("재무 스냅샷이 없습니다. PC에서 `python scripts/build_snapshot.py` 실행 후 push 하세요.")
     st.stop()
 
-# 저장된 필터 → 세션 시드 (새로고침/다른 브라우저 공통)
 seed_session_from_saved(load_saved_filters())
 
 
@@ -63,6 +64,50 @@ _meta = financials_meta()
 financials = get_financials(_meta)
 ABS_KEYS = ["revenue", "operating_profit", "net_income"]
 FILTER_KEYS = all_filter_keys()
+
+if "price_cache" not in st.session_state:
+    st.session_state["price_cache"] = {}  # stock_code -> row dict
+if "price_cache_date" not in st.session_state:
+    st.session_state["price_cache_date"] = ""
+
+
+def cached_prices_df(codes: list[str]) -> pd.DataFrame:
+    cache = st.session_state["price_cache"]
+    rows = [cache[c] for c in codes if c in cache]
+    return pd.DataFrame(rows) if rows else pd.DataFrame()
+
+
+def fetch_prices_for_codes(codes: list[str], name_map: dict[str, str]) -> pd.DataFrame:
+    """Fetch only missing codes; reuse same-day cache."""
+    today = str(date.today())
+    if st.session_state.get("price_cache_date") != today:
+        st.session_state["price_cache"] = {}
+        st.session_state["price_cache_date"] = today
+
+    cache = st.session_state["price_cache"]
+    missing = [c for c in codes if c not in cache]
+    if missing:
+        bar = st.progress(0)
+        status = st.empty()
+
+        def on_prog(cur, total, name):
+            bar.progress(min(cur / max(total, 1), 1.0))
+            if cur == 1 or cur % 10 == 0 or cur == total:
+                status.caption(f"주가 {cur}/{total} {name}")
+
+        with st.spinner(f"검색된 {len(missing)}종목 주가 조회 중..."):
+            fresh = fetch_price_metrics(
+                missing, name_map, progress_callback=on_prog, max_workers=8
+            )
+        if not fresh.empty:
+            for _, row in fresh.iterrows():
+                code = str(row["stock_code"]).zfill(6)
+                cache[code] = row.to_dict()
+                cache[code]["stock_code"] = code
+        status.caption(f"주가 신규 {len(fresh)} / 요청 {len(missing)}")
+
+    return cached_prices_df(codes)
+
 
 # ---------- Sidebar ----------
 with st.sidebar:
@@ -80,40 +125,10 @@ with st.sidebar:
 
     st.caption(financials_meta().strip().replace("\n", " · "))
     st.caption(f"종목 {len(financials)}개")
-
-    if st.button("오늘 주가 갱신", use_container_width=True, type="secondary"):
-        subset = financials
-        if market != "ALL" and "market" in subset.columns:
-            subset = subset[subset["market"] == market]
-        codes = subset["stock_code"].astype(str).str.zfill(6).tolist()
-        name_map = dict(
-            zip(subset["stock_code"].astype(str).str.zfill(6), subset["corp_name"])
-        )
-        bar = st.progress(0)
-        status = st.empty()
-
-        def on_prog(cur, total, name):
-            bar.progress(min(cur / max(total, 1), 1.0))
-            if cur == 1 or cur % 20 == 0 or cur == total:
-                status.caption(f"주가 {cur}/{total} {name}")
-
-        with st.spinner("오늘 주가·바닥지표 계산 중..."):
-            prices = fetch_price_metrics(
-                codes, name_map, progress_callback=on_prog, max_workers=6
-            )
-        st.session_state["prices"] = prices
-        st.session_state["prices_date"] = str(date.today())
-        st.session_state["prices_market"] = market
-        status.caption(f"주가 {len(prices)}종목 갱신 완료")
-        st.success(f"{len(prices)}종목 주가 반영")
-
-    if "prices" in st.session_state:
-        st.caption(
-            f"주가: {st.session_state.get('prices_date', '-')} "
-            f"({len(st.session_state['prices'])}종목)"
-        )
-    else:
-        st.caption("주가 미갱신 — 바닥위치 필터는 갱신 후")
+    cached_n = len(st.session_state.get("price_cache", {}))
+    if cached_n:
+        st.caption(f"오늘 주가 캐시 {cached_n}종목")
+    st.caption("주가는 스크리닝 결과 종목만 조회합니다.")
 
     st.divider()
     filters: dict = {}
@@ -133,25 +148,52 @@ with st.sidebar:
 
 # ---------- Main ----------
 st.title("국내 상장주 스크리너")
-st.caption("재무 연간 스냅샷 · 주가 오늘 갱신 · 필터는 저장 후 모든 브라우저 공통")
+st.caption("재무 필터 → 해당 종목만 주가 조회 → 바닥위치 필터")
 
 view = financials.copy()
 if market != "ALL" and "market" in view.columns:
     view = view[view["market"] == market].copy()
 
-prices = st.session_state.get("prices")
-merged = merge_financial_and_price(view, prices if prices is not None else None)
+fin_filters, price_filters = split_filters(filters)
 
 if run or "last_result" in st.session_state:
     if run:
-        filtered = apply_range_filters(merged, filters)
-        filtered = sort_dataframe(filtered, sort_rules)
+        # 1) 재무 필터만 먼저
+        candidates = apply_range_filters(view, fin_filters)
+        st.write(f"재무 통과: **{len(candidates)}**종목")
+
+        # 2) 통과 종목만 주가 조회 (바닥필터/주가정렬이 있을 때, 또는 항상 표시용으로 조회)
+        # 결과가 너무 많으면 상한 — 주가 조회 폭주 방지
+        MAX_PRICE_FETCH = 300
+        if candidates.empty:
+            filtered = candidates
+        else:
+            fetch_df = candidates.head(MAX_PRICE_FETCH)
+            if len(candidates) > MAX_PRICE_FETCH:
+                st.warning(
+                    f"재무 통과 {len(candidates)}종목 → 주가는 상위 {MAX_PRICE_FETCH}개만 조회합니다. "
+                    "재무 조건을 더 좁혀 주세요."
+                )
+            codes = fetch_df["stock_code"].astype(str).str.zfill(6).tolist()
+            name_map = dict(
+                zip(fetch_df["stock_code"].astype(str).str.zfill(6), fetch_df["corp_name"])
+            )
+            prices = fetch_prices_for_codes(codes, name_map)
+            merged = merge_financial_and_price(fetch_df, prices)
+
+            # 3) 바닥 위치 필터
+            filtered = apply_range_filters(merged, price_filters)
+            filtered = sort_dataframe(filtered, sort_rules)
+
         st.session_state["last_result"] = filtered
         st.session_state["last_market"] = market_label
+        st.session_state["last_candidate_count"] = len(candidates)
     else:
         filtered = st.session_state["last_result"]
+        candidates_n = st.session_state.get("last_candidate_count", len(filtered))
 
-    st.subheader(f"결과 {len(filtered)}종목  /  대상 {len(merged)}종목")
+    cand_n = st.session_state.get("last_candidate_count", len(filtered))
+    st.subheader(f"결과 {len(filtered)}종목  /  재무통과 {cand_n}종목  /  시장 {len(view)}종목")
 
     show_cols = [
         "corp_name",
@@ -173,25 +215,27 @@ if run or "last_result" in st.session_state:
         "net_income",
     ]
     show_cols = [c for c in show_cols if c in filtered.columns]
-    display = format_display_df(filtered[show_cols])
-    rename = {k: SORT_LABELS.get(k, k) for k in display.columns}
-    rename.update({"corp_name": "종목명", "stock_code": "코드", "market": "시장"})
-    st.dataframe(
-        display.rename(columns=rename),
-        use_container_width=True,
-        hide_index=True,
-        height=560,
-    )
-
-    st.download_button(
-        "CSV 다운로드",
-        filtered.to_csv(index=False).encode("utf-8-sig"),
-        file_name="screener_result.csv",
-        mime="text/csv",
-    )
+    if filtered.empty:
+        st.info("조건에 맞는 종목이 없습니다.")
+    else:
+        display = format_display_df(filtered[show_cols])
+        rename = {k: SORT_LABELS.get(k, k) for k in display.columns}
+        rename.update({"corp_name": "종목명", "stock_code": "코드", "market": "시장"})
+        st.dataframe(
+            display.rename(columns=rename),
+            use_container_width=True,
+            hide_index=True,
+            height=560,
+        )
+        st.download_button(
+            "CSV 다운로드",
+            filtered.to_csv(index=False).encode("utf-8-sig"),
+            file_name="screener_result.csv",
+            mime="text/csv",
+        )
 else:
     st.info(
-        "왼쪽에서 필터를 고른 뒤 **필터 저장** / **스크리닝**을 누르세요. "
-        "저장된 필터는 새로고침·다른 브라우저에서도 동일하게 불러옵니다."
+        "왼쪽에서 재무 필터를 고른 뒤 **스크리닝**을 누르세요. "
+        "통과한 종목만 주가를 가져옵니다."
     )
     st.metric("재무 스냅샷 종목 수", len(view))

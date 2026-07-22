@@ -80,6 +80,21 @@ FILTER_CATEGORIES = {
 }
 
 
+PRICE_FILTER_KEYS = {"pct_from_low", "range_position", "bottom_dwell_ratio"}
+
+
+def split_filters(
+    filters: dict[str, tuple[float | None, float | None]],
+) -> tuple[dict, dict]:
+    fin, price = {}, {}
+    for key, bounds in filters.items():
+        if key in PRICE_FILTER_KEYS:
+            price[key] = bounds
+        else:
+            fin[key] = bounds
+    return fin, price
+
+
 def merge_financial_and_price(financials: pd.DataFrame, prices: pd.DataFrame) -> pd.DataFrame:
     if financials.empty:
         return pd.DataFrame()
