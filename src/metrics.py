@@ -102,7 +102,10 @@ def load_financial_metrics(bsns_year: str, prev_year: str | None = None) -> pd.D
             "inventory_months": _inventory_months(a["inventory"], a["cogs"]),
             "cash_flow_match": _ratio(a["operating_cash_flow"], net_income),
             "cash_to_revenue": _pct_ratio(cash_total, revenue),
-            "cash_to_op_profit_x3": _pct_ratio(cash_total, (a["operating_profit"] or 0) * 3 if a["operating_profit"] else None),
+            "cash_to_op_profit_x3": _pct_ratio(
+                cash_total,
+                a["operating_profit"] * 3 if a["operating_profit"] is not None else None,
+            ),
             "happy_debt_growth": _growth(a["advances"], p.get("advances")),
             "sga_ratio": sga_ratio,
             "sga_ratio_change": (sga_ratio - prev_sga_ratio) if sga_ratio is not None and prev_sga_ratio is not None else None,
