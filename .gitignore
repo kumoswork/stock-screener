@@ -7,4 +7,6 @@ data/*.db
 .venv/
 venv/
 !data/corp_codes_listed.csv
+!data/screener_snapshot.csv
+!data/screener_snapshot_meta.txt
 !data/.gitkeep

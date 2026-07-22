@@ -213,11 +213,24 @@ class DartClient:
         Streamlit Cloud(해외)에서는 DART/KRX가 막히므로
         저장소에 포함된 CSV를 기본으로 사용한다.
         """
+        bundled = self._load_bundled_corp_codes()
         existing = count_listed_corps()
-        if existing >= 500 and not force_dart:
+
+        # market 정보가 없거나 비어 있으면 번들로 교체 (상장폐지 섞인 구캐시 방지)
+        needs_refresh = False
+        if existing > 0:
+            conn = get_db()
+            init_db(conn)
+            row = conn.execute(
+                "SELECT COUNT(*) AS cnt FROM corp_codes WHERE market IS NOT NULL AND market != ''"
+            ).fetchone()
+            conn.close()
+            if not row or int(row["cnt"]) < 100:
+                needs_refresh = True
+
+        if existing >= 500 and not force_dart and not needs_refresh:
             return existing, "cached"
 
-        bundled = self._load_bundled_corp_codes()
         if bundled is not None and not bundled.empty and not force_dart:
             count = self._save_corp_codes_df(bundled)
             return count, "bundled"
@@ -298,8 +311,15 @@ class DartClient:
 
             try:
                 items = self.fetch_financials(corp_code, bsns_year)
-            except (RuntimeError, ConnectTimeout, RequestException):
-                time.sleep(0.15)
+            except (RuntimeError, ConnectTimeout, RequestException) as exc:
+                # 데이터 없음은 조용히 스킵
+                msg = str(exc)
+                if "없습니다" not in msg and "no data" not in msg.lower():
+                    pass
+                time.sleep(0.05)
+                continue
+
+            if not items:
                 continue
 
             conn = get_db()
@@ -327,7 +347,7 @@ class DartClient:
             conn.commit()
             conn.close()
             saved += 1
-            time.sleep(0.12)
+            time.sleep(0.05)
 
         return saved
 
@@ -362,5 +382,8 @@ def load_listed_corps(market: str = "ALL") -> pd.DataFrame:
 
     if market in ("KOSPI", "KOSDAQ") and "market" in df.columns:
         df = df[df["market"] == market].copy()
+    elif market == "ALL" and "market" in df.columns:
+        df = df[df["market"].isin(["KOSPI", "KOSDAQ"])].copy()
 
-    return df.reset_index(drop=True)
+    # 대형주부터 채우도록 종목코드 정렬 (안정적인 샘플링)
+    return df.sort_values(["market", "stock_code"]).reset_index(drop=True)

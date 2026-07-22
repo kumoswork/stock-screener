@@ -1,33 +1,45 @@
 # 국내주식 스크리너
 
-재무 지표 + 바닥권 주가 위치로 국내 상장주를 필터링합니다.
+**클라우드에서는 필터만** 합니다. 재무·주가 데이터는 PC에서 미리 만들어 `data/screener_snapshot.csv`로 올립니다.
 
-## 로컬 실행
+## 왜 이렇게?
+
+Streamlit Cloud(해외)에서는 DART/KRX 실시간 조회가 느리거나 막힙니다.  
+종목마다 API를 치면 끝이 없으므로 **오프라인 스냅샷 → 온라인 필터** 구조입니다.
+
+## Streamlit Cloud
+
+1. `data/screener_snapshot.csv` 가 포함된 상태로 GitHub push
+2. Secrets는 더 이상 필수가 아님 (스냅샷만 쓸 때)
+3. 앱에서 필터 → 결과 즉시
+
+## 로컬에서 스냅샷 만들기 (한국 PC)
 
 ```powershell
 cd stock-screener
-python -m venv .venv
 .\.venv\Scripts\activate
 pip install -r requirements.txt
+
+# 테스트 (300종목)
+python scripts/build_snapshot.py --limit 300 --year 2025 --prev 2024
+
+# 전체
+python scripts/build_snapshot.py --year 2025 --prev 2024
+
+# KOSPI만
+python scripts/build_snapshot.py --market KOSPI
+```
+
+완료 후:
+
+```powershell
+git add data/screener_snapshot.csv data/screener_snapshot_meta.txt
+git commit -m "Update screener snapshot"
+git push
+```
+
+## 로컬 앱 실행
+
+```powershell
 streamlit run app.py
 ```
-
-브라우저: http://localhost:8501
-
-## Streamlit Cloud 배포
-
-1. 이 폴더를 GitHub 저장소에 push
-2. https://share.streamlit.io 접속 → GitHub 연동
-3. **Main file path**: `app.py`
-4. **Secrets** (Settings → Secrets):
-
-```toml
-DART_API_KEY = "발급받은_키"
-```
-
-## 사용 순서
-
-1. DART 회사목록 불러오기
-2. 재무제표 불러오기
-3. 주가/바닥지표 불러오기
-4. 필터 설정 → 스크리닝 실행
