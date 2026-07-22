@@ -8,11 +8,12 @@ from pathlib import Path
 import streamlit as st
 from dotenv import load_dotenv
 import os
+from requests.exceptions import ConnectTimeout, RequestException
 
 SRC_DIR = Path(__file__).resolve().parent / "src"
 sys.path.insert(0, str(SRC_DIR))
 
-from dart_api import DartClient, load_listed_corps  # noqa: E402
+from dart_api import DartClient, count_listed_corps, load_listed_corps  # noqa: E402
 from metrics import load_financial_metrics  # noqa: E402
 from price import fetch_price_metrics, load_price_metrics, save_price_metrics  # noqa: E402
 from screener import (  # noqa: E402
@@ -57,10 +58,31 @@ with st.sidebar:
     st.divider()
     st.subheader("데이터 동기화")
 
-    if st.button("1) DART 회사목록 불러오기", use_container_width=True):
-        with st.spinner("회사 목록 다운로드 중..."):
-            count = client.sync_corp_codes()
-        st.success(f"상장사 {count}개 저장 완료")
+    cached_count = count_listed_corps()
+    if cached_count > 0:
+        st.caption(f"저장된 회사목록: {cached_count}개")
+
+    force_dart = st.checkbox("DART에서 전체 갱신 (느림, 한국서버 권장)", value=False)
+
+    if st.button("1) 회사목록 불러오기", use_container_width=True):
+        try:
+            with st.spinner("상장사 목록 로드 중..."):
+                count, source = client.sync_corp_codes(force_dart=force_dart)
+            if source == "cached":
+                st.info(f"이미 {count}개 목록이 있습니다. DART 전체 갱신을 쓰려면 체크 후 다시 실행하세요.")
+            elif source == "dart":
+                st.success(f"DART에서 {count}개 상장사 저장 완료")
+            elif source == "krx":
+                st.success(f"KRX에서 {count}개 상장사 빠른 로드 완료 (재무조회 시 DART 코드 자동 매칭)")
+            else:
+                st.success(f"{count}개 상장사 로드 완료 ({source})")
+        except ConnectTimeout:
+            st.error(
+                "DART 서버 연결 시간 초과입니다. **DART 전체 갱신** 체크를 해제하고 "
+                "다시 시도하세요. (KRX 빠른 로드 사용)"
+            )
+        except RequestException as exc:
+            st.error(f"네트워크 오류: {exc}")
 
     corps = load_listed_corps(market)
     st.info(f"대상 종목: {len(corps)}개")
