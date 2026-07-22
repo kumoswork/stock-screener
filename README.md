@@ -11,8 +11,8 @@
 ## 재무 스냅샷 만들기 (한국 PC, 연 1회)
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\build_snapshot.py --market KOSPI --year 2024 --prev 2023
-# 전체: --limit 없이
+.\.venv\Scripts\python.exe scripts\build_snapshot.py --year 2025 --prev 2024
+# 테스트: --limit 500 / 시장: --market KOSPI
 ```
 
 생성 파일: `data/financials_snapshot.csv` → GitHub push

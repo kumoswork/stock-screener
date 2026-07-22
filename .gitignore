@@ -9,6 +9,7 @@ venv/
 !data/corp_codes_listed.csv
 !data/financials_snapshot.csv
 !data/financials_snapshot_meta.txt
+!data/saved_filters.json
 !data/screener_snapshot.csv
 !data/screener_snapshot_meta.txt
 !data/.gitkeep

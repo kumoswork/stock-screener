@@ -140,9 +140,9 @@ def render_sidebar_filters(filters: dict) -> list[tuple[str, bool]]:
             if enabled:
                 c1, c2 = st.columns(2)
                 with c1:
-                    lo = st.number_input("min", key=f"f_{key}_lo", value=0.0, label_visibility="collapsed")
+                    lo = st.number_input("min", key=f"f_{key}_lo", label_visibility="collapsed")
                 with c2:
-                    hi = st.number_input("max", key=f"f_{key}_hi", value=0.0, label_visibility="collapsed")
+                    hi = st.number_input("max", key=f"f_{key}_hi", label_visibility="collapsed")
                 filters[key] = (None if lo == 0 else lo, None if hi == 0 else hi)
         st.divider()
 
@@ -153,9 +153,9 @@ def render_sidebar_filters(filters: dict) -> list[tuple[str, bool]]:
             multiplier = 1e8 if unit == "억원" else 1e12
             c1, c2 = st.columns(2)
             with c1:
-                lo = st.number_input("min", key=f"abs_{key}_lo", value=0.0, label_visibility="collapsed")
+                lo = st.number_input("min", key=f"abs_{key}_lo", label_visibility="collapsed")
             with c2:
-                hi = st.number_input("max", key=f"abs_{key}_hi", value=0.0, label_visibility="collapsed")
+                hi = st.number_input("max", key=f"abs_{key}_hi", label_visibility="collapsed")
             filters[key] = (lo * multiplier if lo else None, hi * multiplier if hi else None)
     st.divider()
 
@@ -176,6 +176,14 @@ def render_sidebar_filters(filters: dict) -> list[tuple[str, bool]]:
             )
             sort_rules.append((col, asc))
     return sort_rules
+
+
+def all_filter_keys() -> list[str]:
+    keys = []
+    for items in FILTER_CATEGORIES.values():
+        for key, _, _ in items:
+            keys.append(key)
+    return keys
 
 
 def format_display_df(df: pd.DataFrame) -> pd.DataFrame:
