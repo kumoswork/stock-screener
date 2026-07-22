@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+import FinanceDataReader as fdr
 import pandas as pd
-from pykrx import stock as krx
 
 from dart_api import get_db, init_db
 
@@ -21,8 +21,8 @@ def fetch_price_metrics(
     """Compute bottom-focused price metrics for each ticker."""
     end = datetime.today()
     start = end - timedelta(days=lookback_days + 30)
-    end_s = end.strftime("%Y%m%d")
-    start_s = start.strftime("%Y%m%d")
+    end_s = end.strftime("%Y-%m-%d")
+    start_s = start.strftime("%Y-%m-%d")
 
     rows = []
     total = len(stock_codes)
@@ -30,7 +30,7 @@ def fetch_price_metrics(
         if progress_callback:
             progress_callback(i + 1, total, corp_names.get(code, code) if corp_names else code)
         try:
-            ohlcv = krx.get_market_ohlcv_by_date(start_s, end_s, code)
+            ohlcv = fdr.DataReader(code, start_s, end_s)
         except Exception:
             continue
         if ohlcv is None or ohlcv.empty:
@@ -40,9 +40,13 @@ def fetch_price_metrics(
         if recent.empty:
             continue
 
-        low_52w = float(recent["저가"].min())
-        high_52w = float(recent["고가"].max())
-        current = float(recent["종가"].iloc[-1])
+        low_col = "Low" if "Low" in recent.columns else "저가"
+        high_col = "High" if "High" in recent.columns else "고가"
+        close_col = "Close" if "Close" in recent.columns else "종가"
+
+        low_52w = float(recent[low_col].min())
+        high_52w = float(recent[high_col].max())
+        current = float(recent[close_col].iloc[-1])
 
         if low_52w <= 0:
             continue
@@ -55,7 +59,7 @@ def fetch_price_metrics(
         band_top = low_52w + (high_52w - low_52w) * (bottom_band_pct / 100)
         dwell_window = recent.tail(dwell_days)
         if len(dwell_window) > 0:
-            near_bottom_days = (dwell_window["종가"] <= band_top).sum()
+            near_bottom_days = (dwell_window[close_col] <= band_top).sum()
             bottom_dwell_ratio = near_bottom_days / len(dwell_window) * 100
         else:
             bottom_dwell_ratio = None

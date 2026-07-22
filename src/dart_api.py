@@ -218,14 +218,18 @@ def load_listed_corps(market: str = "ALL") -> pd.DataFrame:
     if df.empty:
         return df
 
-    from pykrx import stock as krx
+    import FinanceDataReader as fdr
 
-    today = pd.Timestamp.today().strftime("%Y%m%d")
     codes: set[str] = set()
-    if market in ("ALL", "KOSPI"):
-        codes.update(krx.get_market_ticker_list(today, market="KOSPI"))
-    if market in ("ALL", "KOSDAQ"):
-        codes.update(krx.get_market_ticker_list(today, market="KOSDAQ"))
+    try:
+        if market in ("ALL", "KOSPI"):
+            kospi = fdr.StockListing("KOSPI")
+            codes.update(kospi["Code"].astype(str).str.zfill(6).tolist())
+        if market in ("ALL", "KOSDAQ"):
+            kosdaq = fdr.StockListing("KOSDAQ")
+            codes.update(kosdaq["Code"].astype(str).str.zfill(6).tolist())
+    except Exception:
+        return df.reset_index(drop=True)
 
     df = df[df["stock_code"].isin(codes)].copy()
     return df.reset_index(drop=True)
