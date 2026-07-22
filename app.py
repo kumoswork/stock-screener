@@ -55,11 +55,12 @@ seed_session_from_saved(load_saved_filters())
 
 
 @st.cache_data
-def get_financials():
+def get_financials(_version: str):
     return load_financials()
 
 
-financials = get_financials()
+_meta = financials_meta()
+financials = get_financials(_meta)
 ABS_KEYS = ["revenue", "operating_profit", "net_income"]
 FILTER_KEYS = all_filter_keys()
 
