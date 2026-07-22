@@ -2,7 +2,9 @@
 __pycache__/
 *.pyc
 .cache/
-data/
+data/*.db
 *.db
 .venv/
 venv/
+!data/corp_codes_listed.csv
+!data/.gitkeep

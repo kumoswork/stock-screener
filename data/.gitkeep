@@ -1,0 +1,4 @@
+# Optional: pre-built DART corp code list for offline / cloud fallback.
+# Generate locally (Korea network):
+#   python scripts/export_corp_codes.py
+# Then commit data/corp_codes_listed.csv

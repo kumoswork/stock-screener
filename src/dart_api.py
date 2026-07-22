@@ -19,7 +19,7 @@ DB_PATH = DATA_DIR / "screener.db"
 BUNDLED_CORP_CSV = DATA_DIR / "corp_codes_listed.csv"
 
 ANNUAL_REPORT = "11011"
-DART_TIMEOUT = (10, 30)  # connect, read seconds
+DART_TIMEOUT = (10, 30)
 DART_RETRIES = 3
 
 
@@ -38,7 +38,8 @@ def init_db(conn: sqlite3.Connection) -> None:
             corp_code TEXT PRIMARY KEY,
             corp_name TEXT NOT NULL,
             stock_code TEXT,
-            modify_date TEXT
+            modify_date TEXT,
+            market TEXT
         );
 
         CREATE TABLE IF NOT EXISTS financials (
@@ -65,6 +66,10 @@ def init_db(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_corp_codes_stock ON corp_codes(stock_code);
         """
     )
+    # migrate older DBs missing market column
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(corp_codes)").fetchall()}
+    if "market" not in cols:
+        conn.execute("ALTER TABLE corp_codes ADD COLUMN market TEXT")
     conn.commit()
 
 
@@ -105,11 +110,10 @@ class DartClient:
         raise ConnectTimeout(f"DART 연결 실패 ({endpoint}): {last_error}")
 
     def lookup_corp_code(self, stock_code: str) -> str | None:
-        """종목코드로 DART 고유번호 조회 (소량 요청, 해외 서버에서도 비교적 안정)."""
         conn = get_db()
         init_db(conn)
         row = conn.execute(
-            "SELECT corp_code FROM corp_codes WHERE stock_code = ? AND corp_code != ''",
+            "SELECT corp_code FROM corp_codes WHERE stock_code = ? AND corp_code != '' AND corp_code NOT LIKE 'S%'",
             (stock_code,),
         ).fetchone()
         if row and row["corp_code"]:
@@ -130,71 +134,38 @@ class DartClient:
 
         conn.execute("DELETE FROM corp_codes WHERE stock_code = ?", (stock_code,))
         conn.execute(
-            "INSERT INTO corp_codes (corp_code, corp_name, stock_code, modify_date) VALUES (?, ?, ?, ?)",
-            (corp_code, corp_name or stock_code, stock_code, ""),
+            "INSERT INTO corp_codes (corp_code, corp_name, stock_code, modify_date, market) VALUES (?, ?, ?, ?, ?)",
+            (corp_code, corp_name or stock_code, stock_code, "", None),
         )
         conn.commit()
         conn.close()
         return corp_code
 
-    def sync_corp_codes_fast(self, market: str = "ALL") -> int:
-        """KRX 상장목록 빠른 로드 (DART 대용량 XML 불필요)."""
-        import FinanceDataReader as fdr
-
-        markets = []
-        if market in ("ALL", "KOSPI"):
-            markets.append("KOSPI")
-        if market in ("ALL", "KOSDAQ"):
-            markets.append("KOSDAQ")
-
-        rows: list[tuple[str, str, str, str]] = []
-        seen: set[str] = set()
-        for mk in markets:
-            listing = fdr.StockListing(mk)
-            for _, item in listing.iterrows():
-                stock_code = str(item["Code"]).zfill(6)
-                if stock_code in seen:
-                    continue
-                seen.add(stock_code)
-                corp_name = str(item["Name"]).strip()
-                placeholder_code = f"S{stock_code}"
-                rows.append((placeholder_code, corp_name, stock_code, ""))
-
-        conn = get_db()
-        init_db(conn)
-        conn.executemany(
-            """
-            INSERT INTO corp_codes (corp_code, corp_name, stock_code, modify_date)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(corp_code) DO UPDATE SET
-                corp_name = excluded.corp_name,
-                stock_code = excluded.stock_code
-            """,
-            rows,
-        )
-        conn.commit()
-        conn.close()
-        return len(rows)
-
     def _load_bundled_corp_codes(self) -> pd.DataFrame | None:
         if not BUNDLED_CORP_CSV.exists():
             return None
-        return pd.read_csv(BUNDLED_CORP_CSV, dtype=str)
+        df = pd.read_csv(BUNDLED_CORP_CSV, dtype=str)
+        if "market" not in df.columns:
+            df["market"] = ""
+        return df
 
     def _save_corp_codes_df(self, df: pd.DataFrame) -> int:
         listed = df[df["stock_code"].notna() & (df["stock_code"] != "")].copy()
+        if "market" not in listed.columns:
+            listed["market"] = ""
+        if "modify_date" not in listed.columns:
+            listed["modify_date"] = ""
         conn = get_db()
         init_db(conn)
+        conn.execute("DELETE FROM corp_codes")
         conn.executemany(
             """
-            INSERT INTO corp_codes (corp_code, corp_name, stock_code, modify_date)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(corp_code) DO UPDATE SET
-                corp_name = excluded.corp_name,
-                stock_code = excluded.stock_code,
-                modify_date = excluded.modify_date
+            INSERT INTO corp_codes (corp_code, corp_name, stock_code, modify_date, market)
+            VALUES (?, ?, ?, ?, ?)
             """,
-            listed[["corp_code", "corp_name", "stock_code", "modify_date"]].fillna("").values.tolist(),
+            listed[["corp_code", "corp_name", "stock_code", "modify_date", "market"]]
+            .fillna("")
+            .values.tolist(),
         )
         conn.commit()
         conn.close()
@@ -231,6 +202,7 @@ class DartClient:
                     "corp_name": item.findtext("corp_name", "").strip(),
                     "stock_code": stock_code if stock_code else None,
                     "modify_date": item.findtext("modify_date", "").strip(),
+                    "market": "",
                 }
             )
         return pd.DataFrame(rows)
@@ -238,34 +210,40 @@ class DartClient:
     def sync_corp_codes(self, force_dart: bool = False) -> tuple[int, str]:
         """
         회사목록 동기화.
-        - 기본: DB에 있으면 스킵, 없으면 빠른 KRX 로드
-        - force_dart: DART XML 시도 → 실패 시 번들 CSV → 최후 KRX
+        Streamlit Cloud(해외)에서는 DART/KRX가 막히므로
+        저장소에 포함된 CSV를 기본으로 사용한다.
         """
         existing = count_listed_corps()
         if existing >= 500 and not force_dart:
             return existing, "cached"
+
+        bundled = self._load_bundled_corp_codes()
+        if bundled is not None and not bundled.empty and not force_dart:
+            count = self._save_corp_codes_df(bundled)
+            return count, "bundled"
 
         if force_dart:
             try:
                 df = self.download_corp_codes()
                 listed = df[df["stock_code"].notna() & (df["stock_code"] != "")].copy()
                 count = self._save_corp_codes_df(listed)
-                listed.to_csv(BUNDLED_CORP_CSV, index=False)
                 return count, "dart"
             except (ConnectTimeout, RequestException) as exc:
-                bundled = self._load_bundled_corp_codes()
                 if bundled is not None and not bundled.empty:
                     count = self._save_corp_codes_df(bundled)
                     return count, f"bundled (DART 실패: {exc.__class__.__name__})"
-                raise
+                raise RuntimeError(
+                    "DART 연결 실패. Streamlit Cloud에서는 'DART 전체 갱신'을 끄고 "
+                    "번들 목록을 사용하세요."
+                ) from exc
 
-        bundled = self._load_bundled_corp_codes()
         if bundled is not None and not bundled.empty:
             count = self._save_corp_codes_df(bundled)
             return count, "bundled"
 
-        count = self.sync_corp_codes_fast("ALL")
-        return count, "krx"
+        raise RuntimeError(
+            "회사목록 파일이 없습니다. 저장소에 data/corp_codes_listed.csv 가 필요합니다."
+        )
 
     def fetch_financials(self, corp_code: str, bsns_year: str) -> list[dict]:
         data = self._get_json(
@@ -308,7 +286,7 @@ class DartClient:
 
         saved = 0
         total = len(corps)
-        for i, row in corps.iterrows():
+        for i, (_, row) in enumerate(corps.iterrows()):
             if progress_callback:
                 progress_callback(i + 1, total, row["corp_name"])
 
@@ -367,28 +345,22 @@ def _parse_amount(value) -> float | None:
 
 
 def load_listed_corps(market: str = "ALL") -> pd.DataFrame:
+    """DB에서 상장사 목록 로드. 네트워크 호출 없음 (클라우드 안정)."""
     conn = get_db()
     init_db(conn)
     df = pd.read_sql(
-        "SELECT corp_code, corp_name, stock_code FROM corp_codes WHERE stock_code IS NOT NULL AND stock_code != ''",
+        """
+        SELECT corp_code, corp_name, stock_code, market
+        FROM corp_codes
+        WHERE stock_code IS NOT NULL AND stock_code != ''
+        """,
         conn,
     )
     conn.close()
     if df.empty:
         return df
 
-    import FinanceDataReader as fdr
+    if market in ("KOSPI", "KOSDAQ") and "market" in df.columns:
+        df = df[df["market"] == market].copy()
 
-    codes: set[str] = set()
-    try:
-        if market in ("ALL", "KOSPI"):
-            kospi = fdr.StockListing("KOSPI")
-            codes.update(kospi["Code"].astype(str).str.zfill(6).tolist())
-        if market in ("ALL", "KOSDAQ"):
-            kosdaq = fdr.StockListing("KOSDAQ")
-            codes.update(kosdaq["Code"].astype(str).str.zfill(6).tolist())
-    except Exception:
-        return df.reset_index(drop=True)
-
-    df = df[df["stock_code"].isin(codes)].copy()
     return df.reset_index(drop=True)

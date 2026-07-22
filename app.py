@@ -62,26 +62,21 @@ with st.sidebar:
     if cached_count > 0:
         st.caption(f"저장된 회사목록: {cached_count}개")
 
-    force_dart = st.checkbox("DART에서 전체 갱신 (느림, 한국서버 권장)", value=False)
+    st.caption("클라우드에서는 저장소에 포함된 상장사 목록(번들)을 사용합니다. 체크 없이 불러오세요.")
 
     if st.button("1) 회사목록 불러오기", use_container_width=True):
         try:
             with st.spinner("상장사 목록 로드 중..."):
-                count, source = client.sync_corp_codes(force_dart=force_dart)
+                count, source = client.sync_corp_codes(force_dart=False)
             if source == "cached":
-                st.info(f"이미 {count}개 목록이 있습니다. DART 전체 갱신을 쓰려면 체크 후 다시 실행하세요.")
-            elif source == "dart":
-                st.success(f"DART에서 {count}개 상장사 저장 완료")
-            elif source == "krx":
-                st.success(f"KRX에서 {count}개 상장사 빠른 로드 완료 (재무조회 시 DART 코드 자동 매칭)")
+                st.info(f"이미 {count}개 목록이 있습니다.")
+            elif source == "bundled":
+                st.success(f"번들 목록에서 {count}개 상장사 로드 완료 (즉시)")
             else:
                 st.success(f"{count}개 상장사 로드 완료 ({source})")
-        except ConnectTimeout:
-            st.error(
-                "DART 서버 연결 시간 초과입니다. **DART 전체 갱신** 체크를 해제하고 "
-                "다시 시도하세요. (KRX 빠른 로드 사용)"
-            )
-        except RequestException as exc:
+        except RuntimeError as exc:
+            st.error(str(exc))
+        except (ConnectTimeout, RequestException) as exc:
             st.error(f"네트워크 오류: {exc}")
 
     corps = load_listed_corps(market)
