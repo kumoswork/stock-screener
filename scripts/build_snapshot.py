@@ -29,7 +29,7 @@ from dart_api import DartClient, load_listed_corps  # noqa: E402
 from metrics import load_financial_metrics  # noqa: E402
 from price import fetch_price_metrics  # noqa: E402
 from screener import merge_financial_and_price  # noqa: E402
-from snapshot import save_snapshot  # noqa: E402
+from snapshot import save_financials  # noqa: E402
 
 
 def main() -> None:
@@ -109,12 +109,18 @@ def main() -> None:
     if "market" in corps.columns and "stock_code" in merged.columns:
         merged = merged.merge(corps[["stock_code", "market"]], on="stock_code", how="left")
 
-    path = save_snapshot(
+    # 재무만 저장 (주가는 앱에서 매일 갱신)
+    path = save_financials(
         merged,
         note=f"market={args.market} year={args.year} prev={args.prev} n={len(merged)}",
     )
     print(f"DONE -> {path} ({len(merged)} rows)")
-    print("GitHub에 push 후 Streamlit 앱은 필터만 즉시 동작합니다.")
+    print("주가는 앱의 '오늘 주가 갱신'으로 별도 조회합니다.")
+    if not args.skip_price and prices is not None and not prices.empty:
+        from price import save_price_metrics
+
+        save_price_metrics(prices)
+        print(f"로컬 price_cache.csv 도 저장됨 ({len(prices)} rows)")
 
 
 if __name__ == "__main__":

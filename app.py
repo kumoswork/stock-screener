@@ -1,8 +1,9 @@
-"""국내 상장주 스크리너 — 미리 만든 스냅샷을 필터링합니다."""
+"""국내 상장주 스크리너 — 좌측 필터 / 우측 결과."""
 
 from __future__ import annotations
 
 import sys
+from datetime import date
 from pathlib import Path
 
 import streamlit as st
@@ -10,119 +11,133 @@ import streamlit as st
 SRC_DIR = Path(__file__).resolve().parent / "src"
 sys.path.insert(0, str(SRC_DIR))
 
+from price import fetch_price_metrics  # noqa: E402
 from screener import (  # noqa: E402
-    FILTER_CATEGORIES,
     SORT_LABELS,
     apply_range_filters,
     format_display_df,
-    render_filter_group,
+    merge_financial_and_price,
+    render_sidebar_filters,
     sort_dataframe,
 )
-from snapshot import load_snapshot, snapshot_exists, snapshot_meta  # noqa: E402
+from snapshot import financials_exists, financials_meta, load_financials  # noqa: E402
 
-st.set_page_config(page_title="국내주식 스크리너", page_icon="📊", layout="wide")
+st.set_page_config(page_title="국내주식 스크리너", page_icon="📊", layout="wide", initial_sidebar_state="expanded")
 
-st.title("📊 국내 상장주 스크리너")
-st.caption("미리 계산된 재무·주가 스냅샷을 필터링합니다. (클라우드에서 DART 실시간 조회 없음)")
+st.markdown(
+    """
+    <style>
+    section[data-testid="stSidebar"] { width: 340px !important; }
+    div[data-testid="stSidebarContent"] { padding-top: 0.5rem; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
-if not snapshot_exists():
-    st.error(
-        "스냅샷 파일이 없습니다. 로컬(한국 PC)에서 아래를 실행한 뒤 GitHub에 push 하세요.\n\n"
-        "`python scripts/build_snapshot.py --limit 500`"
-    )
-    st.code(snapshot_meta())
+if not financials_exists():
+    st.error("재무 스냅샷이 없습니다. PC에서 `python scripts/build_snapshot.py` 실행 후 push 하세요.")
     st.stop()
 
+
 @st.cache_data
-def get_data() -> "pd.DataFrame":
-    return load_snapshot()
+def get_financials():
+    return load_financials()
 
 
-import pandas as pd  # noqa: E402
+financials = get_financials()
 
-df = get_data()
-
+# ---------- Sidebar ----------
 with st.sidebar:
-    st.header("데이터")
-    st.markdown(f"```\n{snapshot_meta()}```")
-    st.caption("데이터 갱신은 PC에서 `scripts/build_snapshot.py` 실행 후 push")
+    st.title("필터")
 
-    market = st.selectbox("시장", ["ALL", "KOSPI", "KOSDAQ"])
-    if market != "ALL" and "market" in df.columns:
-        view = df[df["market"] == market].copy()
+    market_label = st.radio(
+        "시장",
+        ["전체", "코스피", "코스닥"],
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+    market_map = {"전체": "ALL", "코스피": "KOSPI", "코스닥": "KOSDAQ"}
+    market = market_map[market_label]
+
+    st.caption(financials_meta().strip().replace("\n", " · "))
+
+    if st.button("오늘 주가 갱신", use_container_width=True, type="secondary"):
+        subset = financials
+        if market != "ALL" and "market" in subset.columns:
+            subset = subset[subset["market"] == market]
+        codes = subset["stock_code"].astype(str).str.zfill(6).tolist()
+        name_map = dict(zip(subset["stock_code"].astype(str).str.zfill(6), subset["corp_name"]))
+        bar = st.progress(0)
+        status = st.empty()
+
+        def on_prog(cur, total, name):
+            bar.progress(min(cur / max(total, 1), 1.0))
+            if cur == 1 or cur % 20 == 0 or cur == total:
+                status.caption(f"주가 {cur}/{total} {name}")
+
+        with st.spinner("오늘 주가·바닥지표 계산 중..."):
+            prices = fetch_price_metrics(codes, name_map, progress_callback=on_prog, max_workers=6)
+        st.session_state["prices"] = prices
+        st.session_state["prices_date"] = str(date.today())
+        st.session_state["prices_market"] = market
+        status.caption(f"주가 {len(prices)}종목 갱신 완료")
+        st.success(f"{len(prices)}종목 주가 반영")
+
+    if "prices" in st.session_state:
+        st.caption(
+            f"주가: {st.session_state.get('prices_date', '-')} "
+            f"({len(st.session_state['prices'])}종목)"
+        )
     else:
-        view = df.copy()
+        st.caption("주가 미갱신 — 재무 필터만 가능 / 바닥위치는 갱신 후")
 
-    st.info(f"대상 종목: {len(view)}개")
+    st.divider()
+    filters: dict = {}
+    sort_rules = render_sidebar_filters(filters)
 
-st.subheader("필터 조건")
+    run = st.button("스크리닝 실행", type="primary", use_container_width=True)
 
-category_names = list(FILTER_CATEGORIES.keys()) + ["절대 금액", "정렬"]
-tabs = st.tabs(category_names)
-filters: dict[str, tuple[float | None, float | None]] = {}
+# ---------- Main (results) ----------
+st.title("국내 상장주 스크리너")
+st.caption("재무는 연간 스냅샷 · 주가만 오늘 갱신")
 
-for tab, category in zip(tabs[:-2], FILTER_CATEGORIES):
-    with tab:
-        st.markdown(f"**{category}** — 체크한 항목만 필터 적용")
-        render_filter_group(filters, category, FILTER_CATEGORIES[category], category[:4])
+view = financials.copy()
+if market != "ALL" and "market" in view.columns:
+    view = view[view["market"] == market].copy()
 
-with tabs[-2]:
-    st.markdown("**절대 금액** — 매출액·영업이익·당기순이익")
-    for key, label in [("revenue", "매출액"), ("operating_profit", "영업이익"), ("net_income", "당기순이익")]:
-        if st.checkbox(label, key=f"abs_{key}"):
-            unit = st.selectbox("단위", ["억원", "조원"], key=f"abs_{key}_unit")
-            multiplier = 1e8 if unit == "억원" else 1e12
-            c1, c2 = st.columns(2)
-            with c1:
-                lo = st.number_input("최소", key=f"abs_{key}_lo", value=0.0)
-            with c2:
-                hi = st.number_input("최대", key=f"abs_{key}_hi", value=0.0)
-            filters[key] = (lo * multiplier if lo else None, hi * multiplier if hi else None)
+prices = st.session_state.get("prices")
+merged = merge_financial_and_price(view, prices if prices is not None else None)
 
-sort_rules: list[tuple[str, bool]] = []
-with tabs[-1]:
-    st.markdown("정렬 기준 최대 3개 (위에서부터 우선순위)")
-    sort_options = [c for c in SORT_LABELS.keys() if c in view.columns or c in ("corp_name", "stock_code")]
-    for i in range(3):
-        c1, c2 = st.columns([3, 1])
-        with c1:
-            col = st.selectbox(
-                f"정렬 {i + 1}",
-                [""] + sort_options,
-                format_func=lambda x: "— 선택 —" if x == "" else SORT_LABELS.get(x, x),
-                key=f"sort_col_{i}",
-            )
-        with c2:
-            direction = st.selectbox("순서", ["내림차순", "오름차순"], key=f"sort_dir_{i}")
-        if col:
-            sort_rules.append((col, direction == "오름차순"))
+if run or "last_result" in st.session_state:
+    if run:
+        filtered = apply_range_filters(merged, filters)
+        filtered = sort_dataframe(filtered, sort_rules)
+        st.session_state["last_result"] = filtered
+    else:
+        filtered = st.session_state["last_result"]
 
-if st.button("🔍 스크리닝 실행", type="primary", use_container_width=True):
-    filtered = apply_range_filters(view, filters)
-    filtered = sort_dataframe(filtered, sort_rules)
-
-    st.subheader(f"결과: {len(filtered)}종목 / 전체 {len(view)}종목")
+    st.subheader(f"결과 {len(filtered)}종목  /  대상 {len(merged)}종목")
 
     show_cols = [
         "corp_name", "stock_code", "market",
-        "cash_survival_years", "current_ratio", "quick_ratio", "debt_ratio",
-        "revenue_growth", "roe", "revenue_minus_debt_growth",
-        "pct_from_low", "range_position", "bottom_dwell_ratio",
-        "revenue", "operating_profit", "net_income", "current_price",
+        "current_price", "pct_from_low", "range_position", "bottom_dwell_ratio",
+        "current_ratio", "quick_ratio", "debt_ratio",
+        "revenue_growth", "roe", "roa",
+        "revenue_minus_debt_growth",
+        "revenue", "operating_profit", "net_income",
     ]
     show_cols = [c for c in show_cols if c in filtered.columns]
     display = format_display_df(filtered[show_cols])
-    rename_map = {k: SORT_LABELS.get(k, k) for k in display.columns if k in SORT_LABELS}
-    rename_map.update({"corp_name": "종목명", "stock_code": "종목코드", "market": "시장"})
-    display = display.rename(columns=rename_map)
-    st.dataframe(display, use_container_width=True, hide_index=True)
+    rename = {k: SORT_LABELS.get(k, k) for k in display.columns}
+    rename.update({"corp_name": "종목명", "stock_code": "코드", "market": "시장"})
+    st.dataframe(display.rename(columns=rename), use_container_width=True, hide_index=True, height=560)
 
-    csv = filtered.to_csv(index=False).encode("utf-8-sig")
-    st.download_button("CSV 다운로드", csv, file_name="screener_result.csv", mime="text/csv")
-
-with st.expander("지표 설명"):
-    for category, items in FILTER_CATEGORIES.items():
-        st.markdown(f"**{category}**")
-        for _, label, help_text in items:
-            if help_text:
-                st.markdown(f"- {label}: {help_text}")
+    st.download_button(
+        "CSV 다운로드",
+        filtered.to_csv(index=False).encode("utf-8-sig"),
+        file_name="screener_result.csv",
+        mime="text/csv",
+    )
+else:
+    st.info("왼쪽에서 필터를 고른 뒤 **스크리닝 실행**을 누르세요. 바닥 위치 필터를 쓰려면 먼저 **오늘 주가 갱신**을 하세요.")
+    st.metric("재무 스냅샷 종목 수", len(view))

@@ -1,4 +1,4 @@
-"""Load/save prebuilt screener snapshot for instant filtering."""
+"""Financial snapshot (yearly) + optional price merge helpers."""
 
 from __future__ import annotations
 
@@ -8,35 +8,75 @@ from pathlib import Path
 import pandas as pd
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-SNAPSHOT_PATH = DATA_DIR / "screener_snapshot.csv"
-META_PATH = DATA_DIR / "screener_snapshot_meta.txt"
+FINANCIALS_PATH = DATA_DIR / "financials_snapshot.csv"
+FINANCIALS_META = DATA_DIR / "financials_snapshot_meta.txt"
+# legacy combined snapshot (migration fallback)
+LEGACY_SNAPSHOT = DATA_DIR / "screener_snapshot.csv"
+
+PRICE_COLS = [
+    "current_price",
+    "low_52w",
+    "high_52w",
+    "pct_from_low",
+    "range_position",
+    "bottom_dwell_ratio",
+]
 
 
-def snapshot_exists() -> bool:
-    return SNAPSHOT_PATH.exists()
+def financials_exists() -> bool:
+    return FINANCIALS_PATH.exists() or LEGACY_SNAPSHOT.exists()
 
 
-def load_snapshot() -> pd.DataFrame:
-    if not SNAPSHOT_PATH.exists():
+def load_financials() -> pd.DataFrame:
+    if FINANCIALS_PATH.exists():
+        df = pd.read_csv(FINANCIALS_PATH, dtype={"stock_code": str})
+    elif LEGACY_SNAPSHOT.exists():
+        df = pd.read_csv(LEGACY_SNAPSHOT, dtype={"stock_code": str})
+        drop = [c for c in PRICE_COLS if c in df.columns]
+        df = df.drop(columns=drop, errors="ignore")
+    else:
         return pd.DataFrame()
-    return pd.read_csv(SNAPSHOT_PATH, dtype={"stock_code": str})
+
+    if "stock_code" in df.columns:
+        df["stock_code"] = df["stock_code"].astype(str).str.zfill(6)
+    return df
 
 
-def save_snapshot(df: pd.DataFrame, note: str = "") -> Path:
+def save_financials(df: pd.DataFrame, note: str = "") -> Path:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    df.to_csv(SNAPSHOT_PATH, index=False)
-    META_PATH.write_text(
+    out = df.drop(columns=[c for c in PRICE_COLS if c in df.columns], errors="ignore")
+    out.to_csv(FINANCIALS_PATH, index=False)
+    FINANCIALS_META.write_text(
         f"updated_at={datetime.now().isoformat(timespec='seconds')}\n"
-        f"rows={len(df)}\n"
+        f"rows={len(out)}\n"
         f"note={note}\n",
         encoding="utf-8",
     )
-    return SNAPSHOT_PATH
+    return FINANCIALS_PATH
+
+
+def financials_meta() -> str:
+    if FINANCIALS_META.exists():
+        return FINANCIALS_META.read_text(encoding="utf-8")
+    if FINANCIALS_PATH.exists():
+        return f"rows={len(pd.read_csv(FINANCIALS_PATH))}\n"
+    if LEGACY_SNAPSHOT.exists():
+        return f"(legacy) rows={len(pd.read_csv(LEGACY_SNAPSHOT))}\n"
+    return "재무 스냅샷 없음"
+
+
+# backward-compatible aliases used by older scripts
+def snapshot_exists() -> bool:
+    return financials_exists()
+
+
+def load_snapshot() -> pd.DataFrame:
+    return load_financials()
+
+
+def save_snapshot(df: pd.DataFrame, note: str = "") -> Path:
+    return save_financials(df, note=note)
 
 
 def snapshot_meta() -> str:
-    if META_PATH.exists():
-        return META_PATH.read_text(encoding="utf-8")
-    if SNAPSHOT_PATH.exists():
-        return f"rows={len(pd.read_csv(SNAPSHOT_PATH))}\n"
-    return "스냅샷 없음"
+    return financials_meta()
