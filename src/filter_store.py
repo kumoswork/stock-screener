@@ -12,10 +12,8 @@ SAVED_PATH = Path(__file__).resolve().parent.parent / "data" / "saved_filters.js
 
 
 def load_saved_filters() -> dict[str, Any]:
-    """Load shared filters. Prefer GitHub(main) so all browsers see the latest save."""
     remote = _load_from_github_raw()
     if remote:
-        # keep local copy in sync
         try:
             save_filters_local(remote)
         except OSError:
@@ -55,17 +53,10 @@ def _load_from_github_raw() -> dict[str, Any]:
 
 def save_filters_local(state: dict[str, Any]) -> None:
     SAVED_PATH.parent.mkdir(parents=True, exist_ok=True)
-    SAVED_PATH.write_text(
-        json.dumps(state, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    SAVED_PATH.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def save_filters_github(state: dict[str, Any]) -> str | None:
-    """
-    Optional durable save via GitHub Contents API.
-    Secrets: GITHUB_TOKEN, optional GITHUB_REPO (default kumoswork/stock-screener)
-    """
     token = os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN")
     try:
         import streamlit as st
@@ -93,17 +84,10 @@ def save_filters_github(state: dict[str, Any]) -> str | None:
     if get_resp.status_code == 200:
         sha = get_resp.json().get("sha")
 
-    content = base64.b64encode(
-        json.dumps(state, ensure_ascii=False, indent=2).encode("utf-8")
-    ).decode("ascii")
-    payload = {
-        "message": "Update saved screener filters",
-        "content": content,
-        "branch": "main",
-    }
+    content = base64.b64encode(json.dumps(state, ensure_ascii=False, indent=2).encode("utf-8")).decode("ascii")
+    payload = {"message": "Update saved screener filters", "content": content, "branch": "main"}
     if sha:
         payload["sha"] = sha
-
     put_resp = requests.put(api, headers=headers, json=payload, timeout=30)
     if put_resp.status_code in (200, 201):
         return "github"
@@ -115,16 +99,12 @@ def persist_filters(state: dict[str, Any]) -> str:
     remote = save_filters_github(state)
     if remote == "github":
         return "local+github"
-    if remote and remote.startswith("github_error"):
+    if remote and str(remote).startswith("github_error"):
         return f"local ({remote})"
     return "local"
 
 
-def collect_filter_state(
-    market_label: str,
-    filter_keys: list[str],
-    abs_keys: list[str],
-) -> dict[str, Any]:
+def collect_filter_state(market_label: str, filter_keys: list[str], abs_keys: list[str]) -> dict[str, Any]:
     import streamlit as st
 
     enabled = []
@@ -132,11 +112,11 @@ def collect_filter_state(
     for key in filter_keys:
         if st.session_state.get(f"f_{key}", False):
             enabled.append(key)
-            lo = st.session_state.get(f"f_{key}_lo", 0.0)
-            hi = st.session_state.get(f"f_{key}_hi", 0.0)
+            lo = st.session_state.get(f"f_{key}_min")
+            hi = st.session_state.get(f"f_{key}_max")
             ranges[key] = [
-                None if float(lo) == 0.0 else float(lo),
-                None if float(hi) == 0.0 else float(hi),
+                float(lo) if lo is not None else None,
+                float(hi) if hi is not None else None,
             ]
 
     abs_state = {}
@@ -148,27 +128,16 @@ def collect_filter_state(
             "hi": float(st.session_state.get(f"abs_{key}_hi", 0.0) or 0.0),
         }
 
-    sort = []
-    for i in range(2):
-        sort.append(
-            {
-                "col": st.session_state.get(f"sort_{i}", "") or "",
-                "asc": st.session_state.get(f"sort_dir_{i}", "내림차순") == "오름차순",
-                "dir_label": st.session_state.get(f"sort_dir_{i}", "내림차순"),
-            }
-        )
-
     return {
         "market": market_label,
+        "search": st.session_state.get("stock_search", "") or "",
         "enabled": enabled,
         "ranges": ranges,
         "abs": abs_state,
-        "sort": sort,
     }
 
 
 def seed_session_from_saved(saved: dict[str, Any]) -> None:
-    """Call once before widgets are created."""
     import streamlit as st
 
     if st.session_state.get("_filters_seeded"):
@@ -180,25 +149,22 @@ def seed_session_from_saved(saved: dict[str, Any]) -> None:
 
     if "market" in saved and "market_radio" not in st.session_state:
         st.session_state["market_radio"] = saved["market"]
+    if "search" in saved and "stock_search" not in st.session_state:
+        st.session_state["stock_search"] = saved.get("search") or ""
 
     for key in saved.get("enabled", []):
         st.session_state[f"f_{key}"] = True
+        st.session_state[f"_defaulted_{key}"] = True
         lo, hi = saved.get("ranges", {}).get(key, [None, None])
-        st.session_state[f"f_{key}_lo"] = float(lo or 0.0)
-        st.session_state[f"f_{key}_hi"] = float(hi or 0.0)
-
-    # also restore ranges for enabled keys only is enough; disabled stay default
+        if lo is not None:
+            st.session_state[f"f_{key}_min"] = float(lo)
+        if hi is not None:
+            st.session_state[f"f_{key}_max"] = float(hi)
 
     for key, conf in saved.get("abs", {}).items():
         st.session_state[f"abs_{key}"] = bool(conf.get("on"))
         st.session_state[f"abs_{key}_unit"] = conf.get("unit", "억원")
         st.session_state[f"abs_{key}_lo"] = float(conf.get("lo") or 0.0)
         st.session_state[f"abs_{key}_hi"] = float(conf.get("hi") or 0.0)
-
-    for i, item in enumerate(saved.get("sort", [])[:2]):
-        st.session_state[f"sort_{i}"] = item.get("col", "") or ""
-        st.session_state[f"sort_dir_{i}"] = item.get("dir_label") or (
-            "오름차순" if item.get("asc") else "내림차순"
-        )
 
     st.session_state["_filters_seeded"] = True

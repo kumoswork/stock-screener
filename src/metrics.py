@@ -134,6 +134,21 @@ def load_financial_metrics(bsns_year: str, prev_year: str | None = None) -> pd.D
                 if revenue_growth is not None and debt_growth is not None
                 else None
             ),
+            # raw accounts for detail modal
+            "current_assets": a["current_assets"],
+            "cash": a["cash"],
+            "short_term_financial": a["short_term_financial"],
+            "receivables": a["receivables"],
+            "inventory": a["inventory"],
+            "total_assets": a["total_assets"],
+            "current_liabilities": a["current_liabilities"],
+            "total_liabilities": a["total_liabilities"],
+            "total_equity": a["total_equity"],
+            "advances": a["advances"],
+            "cogs": a["cogs"],
+            "gross_profit": gross_profit,
+            "sga": sga,
+            "operating_cash_flow": a["operating_cash_flow"],
         }
         rows.append(metrics)
 
