@@ -1,4 +1,4 @@
-"""Detail modal: score card + metric grid style."""
+"""Detail modal: score card + metric grid (reference layout)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import streamlit as st
 
 from criteria import BADGE_SCORE, PRICE_FILTER_KEYS, categories_order, score_row, specs_in_category
 from screener import format_account_krw, format_cell
-from ui_theme import inject_list_detail_css, render_metric_grid, render_score_card
+from ui_theme import GRADE_UI, inject_list_detail_css, render_metric_grid, render_score_card
 
 
 @st.dialog("종목 상세", width="large")
@@ -17,53 +17,64 @@ def detail_dialog(row_dict: dict) -> None:
     sc = score_row(row)
     name = str(row.get("corp_name", ""))
     code = str(row.get("stock_code", "")).zfill(6)
+    score = int(sc["attractiveness"])
+    grade = str(sc["grade"])
+    grade_label = GRADE_UI.get(grade, (grade, "neutral"))[0]
     fin_s, price_s = _partial_scores(sc)
+    badges = sc["badges"]
 
     st.markdown(
         render_score_card(
             name=name,
             code=code,
-            score=int(sc["attractiveness"]),
-            grade=str(sc["grade"]),
+            score=score,
+            grade=grade,
             fin_score=fin_s,
             price_score=price_s,
-            caption="통합 매력도 · 재무 + 주가 현위치",
+            caption="가중치: 재무 60 : 주가 현위치 40",
         ),
         unsafe_allow_html=True,
     )
 
-    badges = sc["badges"]
-    price_items = [
+    # 한 카드에 핵심 지표 타일 모음
+    items: list[tuple[str, str, str]] = [
         ("현재가", _price(row.get("current_price")), "해당없음"),
-        ("저점대비", _pct(row.get("pct_from_low")), badges.get("pct_from_low", "해당없음")),
-        ("52주위치", _pct(row.get("range_position")), badges.get("range_position", "해당없음")),
-        ("바닥체류", _pct(row.get("bottom_dwell_ratio")), badges.get("bottom_dwell_ratio", "해당없음")),
+        ("저점대비(%)", _pct(row.get("pct_from_low")), badges.get("pct_from_low", "해당없음")),
+        ("52주위치(%)", _pct(row.get("range_position")), badges.get("range_position", "해당없음")),
+        ("바닥체류(%)", _pct(row.get("bottom_dwell_ratio")), badges.get("bottom_dwell_ratio", "해당없음")),
         (
-            "52주 범위",
-            f"{_price(row.get('low_52w'))} ~ {_price(row.get('high_52w'))}"
+            "52주 저가/고가",
+            f"{_price(row.get('low_52w'))} / {_price(row.get('high_52w'))}"
             if pd.notna(row.get("low_52w"))
             else "-",
             "해당없음",
         ),
     ]
-    st.markdown(render_metric_grid("주가 현위치", price_items), unsafe_allow_html=True)
-
-    fin_items = []
     for key, label in [
-        ("operating_margin", "영업이익률"),
-        ("revenue_growth", "매출성장률"),
+        ("operating_margin", "영업이익률(%)"),
+        ("revenue_growth", "매출성장률(%)"),
         ("revenue", "매출액"),
-        ("roe", "ROE"),
-        ("roa", "ROA"),
-        ("current_ratio", "유동비율"),
-        ("debt_ratio", "부채비율"),
-        ("quick_ratio", "당좌비율"),
+        ("roe", "ROE(%)"),
+        ("current_ratio", "유동비율(%)"),
+        ("debt_ratio", "부채비율(%)"),
+        ("roa", "ROA(%)"),
+        ("quick_ratio", "당좌비율(%)"),
+        ("operating_profit", "영업이익"),
+        ("net_income", "당기순이익"),
     ]:
-        if key not in row.index:
+        if key not in row.index or pd.isna(row.get(key)):
             continue
-        fin_items.append((label, format_cell(row, key), badges.get(key, "해당없음")))
-    if fin_items:
-        st.markdown(render_metric_grid("핵심 재무", fin_items), unsafe_allow_html=True)
+        items.append((label, format_cell(row, key), badges.get(key, "해당없음")))
+
+    section_title = f"핵심 지표 · {score}점 ({grade_label})"
+    st.markdown(
+        render_metric_grid(
+            section_title,
+            items[:15],
+            footer="뱃지: 매우우수/양호=녹색 · 주의/약세=빨강 | 재무 스냅샷 + 조회 시점 주가",
+        ),
+        unsafe_allow_html=True,
+    )
 
     with st.expander("지표 평가 전체", expanded=False):
         for category in categories_order():
