@@ -59,7 +59,10 @@ st.markdown(
       margin-bottom: 0.35rem;
     }
     section[data-testid="stSidebar"] div[data-testid="stImage"] img {
-      border-radius: 6px;
+      border-radius: 4px;
+      width: 139px !important;
+      height: 35px !important;
+      object-fit: contain;
     }
     section[data-testid="stSidebar"][aria-expanded="true"] {
         min-width: 400px !important;
@@ -255,7 +258,7 @@ def _on_stock_search_change() -> None:
 _LOGO_PATH = Path(__file__).resolve().parent / "assets" / "kumo_logo.png"
 with st.sidebar:
     if _LOGO_PATH.exists():
-        st.image(str(_LOGO_PATH), use_container_width=True)
+        st.image(str(_LOGO_PATH), width=139)
     else:
         st.title("스크리너")
     ui_mode = st.radio(
