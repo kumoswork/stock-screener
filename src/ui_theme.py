@@ -57,7 +57,9 @@ LIST_DETAIL_CSS = """
 }
 .ks-badge.muted { color: #6b7385; background: transparent; padding: 0; }
 
-/* 검색결과 카드 (모바일·데스크톱 공통) */
+/* 검색결과 카드 (모바일 전용 목록) */
+.ks-desktop-list-root,
+.ks-mobile-list-root { display: none !important; height: 0; overflow: hidden; }
 .ks-mcard {
   margin: 0 0 0.15rem 0;
 }
@@ -99,7 +101,6 @@ LIST_DETAIL_CSS = """
 @media (max-width: 768px) {
   .ks-mcard-name { font-size: 1.02rem; }
   .ks-mcard-metrics .val { font-size: 0.9rem; }
-  /* 결과 카드 안 상세 버튼 터치 영역 */
   div[data-testid="stAppViewContainer"] .main div[data-testid="stButton"] > button[kind="primary"],
   div[data-testid="stAppViewContainer"] .main div[data-testid="stButton"] > button[data-testid="baseButton-primary"] {
     min-height: 2.1rem !important;
