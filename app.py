@@ -12,7 +12,7 @@ import streamlit as st
 SRC_DIR = Path(__file__).resolve().parent / "src"
 sys.path.insert(0, str(SRC_DIR))
 
-from detail import show_detail_dialog  # noqa: E402
+from detail import open_detail_for_row  # noqa: E402
 from filter_store import (  # noqa: E402
     collect_filter_state,
     load_saved_filters,
@@ -212,37 +212,63 @@ if run or search_mode or "last_result" in st.session_state:
         rename = {k: SORT_LABELS.get(k, k) for k in display.columns}
         display = display.rename(columns=rename)
 
+        st.caption("행 **왼쪽 체크/선택** 후 상세가 열립니다. (글자만 클릭하면 안 열릴 수 있음)")
+
         event = st.dataframe(
             display,
             use_container_width=True,
             hide_index=True,
-            height=560,
+            height=520,
             on_select="rerun",
             selection_mode="single-row",
             key="result_table",
         )
 
-        selected_rows = []
+        selected_idx = None
+        # Streamlit 버전별 selection 접근
         try:
-            selected_rows = event.selection.rows  # type: ignore[attr-defined]
+            rows = event.selection.rows
+            if rows:
+                selected_idx = int(rows[0])
         except Exception:
-            selected_rows = []
+            pass
+        if selected_idx is None:
+            try:
+                rows = event.selection.get("rows", [])  # type: ignore[attr-defined]
+                if rows:
+                    selected_idx = int(rows[0])
+            except Exception:
+                pass
+        if selected_idx is None and "result_table" in st.session_state:
+            try:
+                sel = st.session_state["result_table"].get("selection", {})
+                rows = sel.get("rows", [])
+                if rows:
+                    selected_idx = int(rows[0])
+            except Exception:
+                pass
 
-        if selected_rows:
-            idx = selected_rows[0]
-            if idx < len(filtered):
-                show_detail_dialog(filtered.iloc[idx])
-
-        # fallback selector
         options = [
-            f"{r.corp_name} ({str(r.stock_code).zfill(6)}) · {int(r.attractiveness) if pd.notna(r.attractiveness) else '-'}점"
+            f"{r.corp_name} ({str(r.stock_code).zfill(6)}) · "
+            f"{int(r.attractiveness) if pd.notna(getattr(r, 'attractiveness', None)) else '-'}점"
             for _, r in filtered.iterrows()
         ]
-        pick = st.selectbox("상세 보기 (클릭 선택이 안 될 때)", ["—"] + options, key="detail_pick")
-        if pick and pick != "—":
-            i = options.index(pick)
-            show_detail_dialog(filtered.iloc[i])
 
+        pick = st.selectbox("상세 볼 종목", ["— 선택 —"] + options, key="detail_pick")
+        col_a, col_b = st.columns([1, 3])
+        with col_a:
+            open_btn = st.button("상세 보기", type="primary")
+
+        open_i = None
+        if selected_idx is not None and selected_idx < len(filtered):
+            open_i = selected_idx
+        elif pick != "— 선택 —" and open_btn:
+            open_i = options.index(pick)
+
+        if open_i is not None:
+            open_detail_for_row(filtered.iloc[open_i])
+            if selected_idx is not None:
+                st.caption(f"선택 행 #{selected_idx + 1} 상세 표시")
         st.download_button(
             "CSV 다운로드",
             filtered.drop(columns=[c for c in filtered.columns if c.startswith("_")], errors="ignore")
