@@ -40,6 +40,7 @@ div[data-testid="stDialog"] [data-testid="stMarkdownContainer"] p {
   color: #b0b6c0 !important;
 }
 .ks-cat-head {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -59,9 +60,12 @@ div[data-testid="stDialog"] [data-testid="stMarkdownContainer"] p {
   height: 1px;
   background: #5a6578;
   min-width: 1.5rem;
+  max-width: calc(90% - 6.5rem);
 }
 .ks-cat-score {
-  flex: 0 0 auto;
+  position: absolute;
+  left: 90%;
+  transform: translateX(-50%);
   color: #c5cddc;
   font-size: 0.95rem;
   font-weight: 700;
@@ -130,7 +134,6 @@ div[data-testid="stDialog"] [data-testid="stMarkdownContainer"] p {
   }
   .ks-cat-head {
     gap: 0.45rem;
-    flex-wrap: wrap;
   }
   div[data-testid="stDialog"] > div,
   section[data-testid="stDialog"] > div,
@@ -199,16 +202,25 @@ def _category_header(title: str, score: int | None, *, show_score: bool = True) 
     else:
         score_html = ""
     # Streamlit이 class CSS를 가끔 무시해서 핵심 레이아웃은 인라인으로 고정
+    # 점수는 행 너비의 약 90% 지점 (끝보다 살짝 안쪽)
+    score_block = ""
+    line_max = "100%"
+    if show_score:
+        line_max = "calc(90% - 6.5rem)"
+        score_block = (
+            f"<div class='ks-cat-score' style='position:absolute;left:90%;"
+            f"transform:translateX(-50%);color:#c5cddc;font-size:0.95rem;"
+            f"font-weight:700;white-space:nowrap;'>{escape(score_html)}</div>"
+        )
     return (
-        f"<div class='ks-cat-head' style='display:flex;align-items:center;gap:0.75rem;"
-        f"margin:1rem 0 0.45rem 0;'>"
+        f"<div class='ks-cat-head' style='position:relative;display:flex;align-items:center;"
+        f"gap:0.75rem;margin:1rem 0 0.45rem 0;'>"
         f"<div class='ks-cat-title' style='flex:0 0 auto;color:#e8eaed;font-size:1.08rem;"
         f"font-weight:700;border-left:3px solid #7d8590;padding-left:0.55rem;"
         f"white-space:nowrap;'>{escape(title)}</div>"
         f"<div class='ks-cat-line' style='flex:1 1 auto;height:1px;background:#5a6578;"
-        f"min-width:1.5rem;'></div>"
-        f"<div class='ks-cat-score' style='flex:0 0 auto;color:#c5cddc;font-size:0.95rem;"
-        f"font-weight:700;white-space:nowrap;'>{escape(score_html)}</div>"
+        f"min-width:1.5rem;max-width:{line_max};'></div>"
+        f"{score_block}"
         f"</div>"
     )
 
