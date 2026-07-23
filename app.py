@@ -5,12 +5,10 @@ from __future__ import annotations
 import base64
 import sys
 from datetime import date
-from html import escape
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 
 SRC_DIR = Path(__file__).resolve().parent / "src"
 sys.path.insert(0, str(SRC_DIR))
@@ -156,6 +154,15 @@ st.markdown(
         line-height: 1.2 !important;
         margin: 0 !important;
         padding-top: 0.35rem !important;
+    }
+    /* 필터 체크박스 라벨 한 줄 유지 */
+    section[data-testid="stSidebar"] label p,
+    section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p,
+    section[data-testid="stSidebar"] .stCheckbox label span {
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      line-height: 1.25 !important;
     }
     /* 리스트 상세 버튼 */
     div[data-testid="stAppViewContainer"] .main div[data-testid="stButton"] > button[kind="primary"],
@@ -465,135 +472,45 @@ if should_query or "last_result" in st.session_state:
         if display_cols and display_cols[0] == "corp_name":
             widths[0] = 2.35
 
-        # ---------- PC: 기존 다열 리스트 ----------
-        with st.container():
-            st.markdown(
-                '<div class="ks-desktop-list-root" aria-hidden="true"></div>',
-                unsafe_allow_html=True,
-            )
-            header = st.columns(widths)
-            for i, col in enumerate(display_cols):
-                header[i].markdown(f"**{SORT_LABELS.get(col, col)}**")
+        header = st.columns(widths)
+        for i, col in enumerate(display_cols):
+            header[i].markdown(f"**{SORT_LABELS.get(col, col)}**")
 
-            st.markdown(
-                "<hr style='margin:0.3rem 0 0.45rem 0; border:none; border-top:1px solid #c8c8c8;'>",
-                unsafe_allow_html=True,
-            )
-
-            for _, r in show.iterrows():
-                code = str(r["stock_code"]).zfill(6)
-                row_cols = st.columns(widths)
-                for i, col in enumerate(display_cols):
-                    if col == "corp_name":
-                        with row_cols[i]:
-                            n1, n2 = st.columns([3.0, 1.05])
-                            n1.markdown(f"**{r['corp_name']}**")
-                            if n2.button("상세", type="primary", key=f"detail_btn_{code}"):
-                                st.session_state["open_detail_code"] = code
-                    elif col == "stock_code":
-                        row_cols[i].write(code)
-                    elif col == "market":
-                        m = r.get("market", "")
-                        label = {"KOSPI": "코스피", "KOSDAQ": "코스닥"}.get(
-                            str(m), str(m) if pd.notna(m) else "-"
-                        )
-                        row_cols[i].write(label)
-                    elif col == "grade":
-                        row_cols[i].markdown(
-                            grade_badge_html(str(r.get("grade", ""))),
-                            unsafe_allow_html=True,
-                        )
-                    else:
-                        row_cols[i].write(format_cell(r, col))
-
-                st.markdown(
-                    "<hr style='margin:0.15rem 0; border:none; border-top:1px solid #e6e6e6;'>",
-                    unsafe_allow_html=True,
-                )
-
-        # ---------- 모바일: 카드 목록 ----------
-        with st.container():
-            st.markdown(
-                '<div class="ks-mobile-list-root" aria-hidden="true"></div>',
-                unsafe_allow_html=True,
-            )
-            for _, r in show.iterrows():
-                code = str(r["stock_code"]).zfill(6)
-                m = r.get("market", "")
-                market_label = {"KOSPI": "코스피", "KOSDAQ": "코스닥"}.get(
-                    str(m), str(m) if pd.notna(m) else "-"
-                )
-                score = r.get("attractiveness", "")
-                score_txt = (
-                    f"{int(score)}점"
-                    if pd.notna(score) and str(score) != ""
-                    else "—"
-                )
-                grade_html = grade_badge_html(str(r.get("grade", "")))
-                price_txt = escape(format_cell(r, "current_price"))
-                op_txt = escape(format_cell(r, "operating_margin"))
-                rev_txt = escape(format_cell(r, "revenue_growth"))
-                name = escape(str(r.get("corp_name", "") or ""))
-
-                with st.container(border=True):
-                    head_l, head_r = st.columns([4.2, 1.1], vertical_alignment="center")
-                    with head_l:
-                        st.markdown(
-                            f'<div class="ks-mcard">'
-                            f'<div class="ks-mcard-name">{name}</div>'
-                            f'<div class="ks-mcard-meta">{escape(code)} · {escape(market_label)} · '
-                            f"{escape(score_txt)} {grade_html}</div>"
-                            f'<div class="ks-mcard-metrics">'
-                            f'<div class="cell"><span class="lab">현재가</span>'
-                            f'<span class="val">{price_txt}</span></div>'
-                            f'<div class="cell"><span class="lab">영업이익률</span>'
-                            f'<span class="val">{op_txt}</span></div>'
-                            f'<div class="cell"><span class="lab">매출성장</span>'
-                            f'<span class="val">{rev_txt}</span></div>'
-                            f"</div></div>",
-                            unsafe_allow_html=True,
-                        )
-                    with head_r:
-                        if st.button(
-                            "상세",
-                            type="primary",
-                            key=f"detail_btn_m_{code}",
-                            use_container_width=True,
-                        ):
-                            st.session_state["open_detail_code"] = code
-
-        # PC/모바일 목록 전환 (CSS :has 대신 JS로 확실히)
-        components.html(
-            """
-<script>
-(function () {
-  const doc = window.parent.document;
-  const win = window.parent;
-  let timer = null;
-  function sync() {
-    const mobile = win.innerWidth <= 768;
-    doc.querySelectorAll('.ks-desktop-list-root').forEach(function (el) {
-      const block = el.closest('[data-testid="stVerticalBlock"]');
-      if (block) block.style.display = mobile ? 'none' : '';
-    });
-    doc.querySelectorAll('.ks-mobile-list-root').forEach(function (el) {
-      const block = el.closest('[data-testid="stVerticalBlock"]');
-      if (block) block.style.display = mobile ? '' : 'none';
-    });
-  }
-  function schedule() {
-    if (timer) win.clearTimeout(timer);
-    timer = win.setTimeout(sync, 50);
-  }
-  sync();
-  win.addEventListener('resize', schedule);
-  new win.MutationObserver(schedule).observe(doc.body, { childList: true, subtree: true });
-})();
-</script>
-            """,
-            height=0,
-            width=0,
+        st.markdown(
+            "<hr style='margin:0.3rem 0 0.45rem 0; border:none; border-top:1px solid #c8c8c8;'>",
+            unsafe_allow_html=True,
         )
+
+        for _, r in show.iterrows():
+            code = str(r["stock_code"]).zfill(6)
+            row_cols = st.columns(widths)
+            for i, col in enumerate(display_cols):
+                if col == "corp_name":
+                    with row_cols[i]:
+                        n1, n2 = st.columns([3.0, 1.05])
+                        n1.markdown(f"**{r['corp_name']}**")
+                        if n2.button("상세", type="primary", key=f"detail_btn_{code}"):
+                            st.session_state["open_detail_code"] = code
+                elif col == "stock_code":
+                    row_cols[i].write(code)
+                elif col == "market":
+                    m = r.get("market", "")
+                    label = {"KOSPI": "코스피", "KOSDAQ": "코스닥"}.get(
+                        str(m), str(m) if pd.notna(m) else "-"
+                    )
+                    row_cols[i].write(label)
+                elif col == "grade":
+                    row_cols[i].markdown(
+                        grade_badge_html(str(r.get("grade", ""))),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    row_cols[i].write(format_cell(r, col))
+
+            st.markdown(
+                "<hr style='margin:0.15rem 0; border:none; border-top:1px solid #e6e6e6;'>",
+                unsafe_allow_html=True,
+            )
 
         open_code = st.session_state.pop("open_detail_code", None)
         if open_code:

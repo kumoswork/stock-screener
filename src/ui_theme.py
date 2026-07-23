@@ -56,58 +56,6 @@ LIST_DETAIL_CSS = """
   border-radius: 999px;
 }
 .ks-badge.muted { color: #6b7385; background: transparent; padding: 0; }
-
-/* 검색결과 카드 (모바일 전용 목록) */
-.ks-desktop-list-root,
-.ks-mobile-list-root { display: none !important; height: 0; overflow: hidden; }
-.ks-mcard {
-  margin: 0 0 0.15rem 0;
-}
-.ks-mcard-name {
-  font-size: 1.05rem;
-  font-weight: 800;
-  color: inherit;
-  line-height: 1.25;
-  margin: 0 0 0.2rem 0;
-}
-.ks-mcard-meta {
-  color: #8b95a8;
-  font-size: 0.82rem;
-  line-height: 1.35;
-  margin: 0 0 0.55rem 0;
-}
-.ks-mcard-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.45rem 0.5rem;
-}
-.ks-mcard-metrics .cell {
-  min-width: 0;
-}
-.ks-mcard-metrics .lab {
-  display: block;
-  color: #8b95a8;
-  font-size: 0.72rem;
-  font-weight: 600;
-  margin-bottom: 0.12rem;
-}
-.ks-mcard-metrics .val {
-  display: block;
-  font-size: 0.95rem;
-  font-weight: 750;
-  line-height: 1.2;
-  word-break: break-word;
-}
-@media (max-width: 768px) {
-  .ks-mcard-name { font-size: 1.02rem; }
-  .ks-mcard-metrics .val { font-size: 0.9rem; }
-  div[data-testid="stAppViewContainer"] .main div[data-testid="stButton"] > button[kind="primary"],
-  div[data-testid="stAppViewContainer"] .main div[data-testid="stButton"] > button[data-testid="baseButton-primary"] {
-    min-height: 2.1rem !important;
-    font-size: 0.85rem !important;
-    padding: 0.25rem 0.55rem !important;
-  }
-}
 </style>
 """
 

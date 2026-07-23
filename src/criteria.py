@@ -30,8 +30,8 @@ FILTER_SPECS: list[FilterSpec] = [
     # B경제
     FilterSpec("cash_survival_years", "현금 생존력", "B경제", "(현금+단기금융)/순손실 = 버틸 연수", "min", 2.0, None, True, "년"),
     FilterSpec("inventory_months", "재고 보유 월수", "B경제", "재고/매출원가(월) = 현금흐름 압박", "max", None, 3.0, False, "개월"),
-    FilterSpec("cash_flow_match", "현금 흐름 일치도", "B경제", "영업CF/당기순이익 = 이익의 질", "min", 1.0, None, True, "배"),
-    FilterSpec("sga_ratio_change", "판관비율 전년대비", "B경제", "판관비÷매출 비율의 전년 대비 변화(%p, 감소=개선)", "max_change", None, 0.0, False, "%p"),
+    FilterSpec("cash_flow_match", "현금흐름일치", "B경제", "영업CF/당기순이익 = 이익의 질", "min", 1.0, None, True, "배"),
+    FilterSpec("sga_ratio_change", "판관비 전년비", "B경제", "판관비÷매출 비율의 전년 대비 변화(%p, 감소=개선)", "max_change", None, 0.0, False, "%p"),
     # 안전성
     FilterSpec("current_ratio", "유동비율", "안전성 check!", "유동자산/유동부채", "min", 100.0, None, True, "%"),
     FilterSpec("quick_ratio", "당좌비율", "안전성 check!", "(유동자산-재고)/유동부채", "min", 100.0, None, True, "%"),
@@ -43,12 +43,12 @@ FILTER_SPECS: list[FilterSpec] = [
     FilterSpec("operating_margin", "영업이익률", "수익/성장성 check!", "영업이익/매출 · 5%↑양호 · 10%↑우수", "min", 10.0, None, True, "%"),
     FilterSpec("net_margin", "당기순이익율", "수익/성장성 check!", "당기순이익/매출 · 3%↑양호 · 8%↑우수", "min", 8.0, None, True, "%"),
     # 효율
-    FilterSpec("roa", "총자산이익율(ROA)", "효율성 check!", "당기순이익/총자산", "min", 5.0, None, True, "%"),
-    FilterSpec("roe", "자기자본이익율(ROE)", "효율성 check!", "당기순이익/자기자본", "min", 15.0, None, True, "%"),
-    FilterSpec("inventory_turnover", "재고자산회전율", "효율성 check!", "매출/재고 (높을수록)", "min", 4.0, None, True, "회"),
-    FilterSpec("receivable_turnover", "매출채권 회전율", "효율성 check!", "매출/매출채권", "min", 10.0, None, True, "회"),
+    FilterSpec("roa", "ROA", "효율성 check!", "당기순이익/총자산", "min", 5.0, None, True, "%"),
+    FilterSpec("roe", "ROE", "효율성 check!", "당기순이익/자기자본", "min", 15.0, None, True, "%"),
+    FilterSpec("inventory_turnover", "재고회전율", "효율성 check!", "매출/재고 (높을수록)", "min", 4.0, None, True, "회"),
+    FilterSpec("receivable_turnover", "매출채권회전", "효율성 check!", "매출/매출채권", "min", 10.0, None, True, "회"),
     # check!!
-    FilterSpec("revenue_minus_debt_growth", "매출증가율−부채증가율", "check!!", "매출성장이 부채성장 이상", "min", 0.0, None, True, "%p"),
+    FilterSpec("revenue_minus_debt_growth", "매출−부채증가", "check!!", "매출성장이 부채성장 이상", "min", 0.0, None, True, "%p"),
     # 주가
     FilterSpec("pct_from_low", "저점대비상승", "주가 현위치", "저점 대비 상승폭 (낮을수록)", "max", None, 50.0, False, "%"),
     FilterSpec("bottom_dwell_ratio", "바닥체류", "주가 현위치", "바닥권 체류 비율 (높을수록)", "min", 50.0, None, True, "%"),
