@@ -1,4 +1,4 @@
-"""Detail modal — soft gray cards, fixed section order, 6 columns."""
+"""Detail modal — dark-gray dialog bg, original dark cards, 6 columns."""
 
 from __future__ import annotations
 
@@ -14,19 +14,31 @@ from ui_theme import GRADE_UI
 
 DETAIL_READABLE_CSS = """
 <style>
+/* 상세 모달 배경만 다크그레이 — 카드는 건드리지 않음 */
+div[data-testid="stDialog"] > div,
+section[data-testid="stDialog"] > div,
+div[role="dialog"] {
+  background-color: #2f343c !important;
+}
+div[data-testid="stDialog"] h3,
+div[data-testid="stDialog"] h4 {
+  color: #e8eaed !important;
+}
 div[data-testid="stDialog"] h3 {
   font-size: 1.5rem !important;
   font-weight: 800 !important;
-  color: #1f2937 !important;
   margin-bottom: 0.3rem !important;
 }
 div[data-testid="stDialog"] h4 {
   font-size: 1.08rem !important;
   font-weight: 700 !important;
-  color: #374151 !important;
   margin: 1rem 0 0.45rem 0 !important;
-  border-left: 3px solid #94a3b8;
+  border-left: 3px solid #7d8590;
   padding-left: 0.55rem;
+}
+div[data-testid="stDialog"] .stCaption,
+div[data-testid="stDialog"] [data-testid="stMarkdownContainer"] p {
+  color: #b0b6c0 !important;
 }
 </style>
 """
@@ -41,26 +53,26 @@ DETAIL_SECTION_ORDER: list[tuple[str, str | None]] = [
     ("매출증가율−부채증가율", "check!!"),
 ]
 
-# 라이트 그레이 테마용 뱃지 스타일
 _GRADE_STYLE = {
-    "A": ("적극 관심", "#dcfce7", "#15803d"),
-    "B": ("관심", "#dbeafe", "#1d4ed8"),
-    "C": ("보통", "#e5e7eb", "#4b5563"),
-    "D": ("주의", "#fee2e2", "#b91c1c"),
+    "A": ("적극 관심", "rgba(61,214,140,0.18)", "#3dd68c"),
+    "B": ("관심", "rgba(76,139,245,0.18)", "#7eb6ff"),
+    "C": ("보통", "rgba(155,165,184,0.18)", "#b0b8c8"),
+    "D": ("주의", "rgba(240,113,120,0.18)", "#f07178"),
 }
 _STATUS_STYLE = {
-    "매우우수": ("매우우수", "#dcfce7", "#15803d"),
-    "우수": ("양호", "#dcfce7", "#16a34a"),
-    "보통": ("보통", "#e5e7eb", "#6b7280"),
-    "주의": ("주의", "#ffedd5", "#c2410c"),
-    "위험": ("약세", "#fee2e2", "#b91c1c"),
-    "해당없음": ("—", "#f3f4f6", "#9ca3af"),
+    "매우우수": ("매우우수", "transparent", "#3dd68c"),
+    "우수": ("양호", "transparent", "#3dd68c"),
+    "보통": ("보통", "transparent", "#9aa3b5"),
+    "주의": ("주의", "rgba(240,113,120,0.16)", "#f07178"),
+    "위험": ("약세", "rgba(240,113,120,0.16)", "#f07178"),
+    "해당없음": ("—", "transparent", "#6b7385"),
 }
 
 
 def _pill(label: str, bg: str, fg: str) -> str:
+    pad = "0.15rem 0.5rem" if bg != "transparent" else "0"
     return (
-        f"<span style='display:inline-block;padding:0.15rem 0.55rem;border-radius:999px;"
+        f"<span style='display:inline-block;padding:{pad};border-radius:999px;"
         f"background:{bg};color:{fg};font-size:0.82rem;font-weight:700;'>"
         f"{escape(label)}</span>"
     )
@@ -68,12 +80,12 @@ def _pill(label: str, bg: str, fg: str) -> str:
 
 def _grade_pill(grade: str) -> str:
     label = GRADE_UI.get(str(grade), (str(grade), ""))[0]
-    _, bg, fg = _GRADE_STYLE.get(str(grade), (label, "#e5e7eb", "#4b5563"))
+    _, bg, fg = _GRADE_STYLE.get(str(grade), (label, "rgba(155,165,184,0.18)", "#b0b8c8"))
     return _pill(label, bg, fg)
 
 
 def _status_pill(badge: str) -> str:
-    label, bg, fg = _STATUS_STYLE.get(badge, (badge or "—", "#f3f4f6", "#9ca3af"))
+    label, bg, fg = _STATUS_STYLE.get(badge, (badge or "—", "transparent", "#6b7385"))
     return _pill(label, bg, fg)
 
 
@@ -90,18 +102,18 @@ def detail_dialog(row_dict: dict) -> None:
     grade_label = GRADE_UI.get(grade, (grade, "neutral"))[0]
     badges = sc["badges"]
 
-    # ---- 상단 요약 카드 ----
+    # 상단: 점수 + 뱃지 (기존 다크 카드 톤)
     st.markdown(
-        f"<div style='background:#e5e7eb;border:1px solid #d1d5db;border-radius:14px;"
+        f"<div style='background:#151b2b;border:1px solid #2a3348;border-radius:14px;"
         f"padding:1rem 1.15rem;margin-bottom:0.35rem;'>"
-        f"<div style='font-size:1.25rem;font-weight:800;color:#111827;margin-bottom:0.45rem;'>"
-        f"{escape(name)} <span style='color:#6b7280;font-weight:600;font-size:1.05rem;'>{code}</span></div>"
-        f"<div style='color:#6b7280;font-size:0.92rem;margin-bottom:0.1rem;'>통합 점수</div>"
+        f"<div style='font-size:1.2rem;font-weight:800;color:#f2f5fa;margin-bottom:0.4rem;'>"
+        f"{escape(name)} <span style='color:#8b95a8;font-weight:500;font-size:1rem;'>{code}</span></div>"
+        f"<div style='color:#8b95a8;font-size:0.9rem;margin-bottom:0.1rem;'>통합 점수</div>"
         f"<div style='display:flex;align-items:center;gap:0.7rem;flex-wrap:wrap;'>"
-        f"<span style='font-size:2.75rem;font-weight:800;line-height:1;color:#111827;'>{score}점</span>"
+        f"<span style='font-size:2.75rem;font-weight:800;line-height:1;color:#fff;'>{score}점</span>"
         f"{_grade_pill(grade)}"
         f"</div>"
-        f"<div style='color:#6b7280;font-size:0.9rem;margin-top:0.35rem;'>등급 {escape(grade_label)}</div>"
+        f"<div style='color:#8b95a8;font-size:0.88rem;margin-top:0.35rem;'>등급 {escape(grade_label)}</div>"
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -151,6 +163,7 @@ def detail_dialog(row_dict: dict) -> None:
 
 
 def _render_metric_tiles(items: list[tuple[str, str, str]]) -> None:
+    """기존 다크 카드 스타일, 한 줄 6개."""
     cols_per_row = 6
     for i in range(0, len(items), cols_per_row):
         chunk = items[i : i + cols_per_row]
@@ -158,13 +171,12 @@ def _render_metric_tiles(items: list[tuple[str, str, str]]) -> None:
         for col, (lab, val, badge) in zip(cols, chunk):
             with col:
                 st.markdown(
-                    f"<div style='background:#e8eaee;border:1px solid #d5d8de;border-radius:12px;"
-                    f"padding:0.75rem 0.6rem;min-height:104px;"
-                    f"box-shadow:0 1px 2px rgba(15,23,42,0.04);'>"
-                    f"<div style='font-size:0.86rem;margin-bottom:0.3rem;color:#6b7280;font-weight:600;'>"
+                    f"<div style='background:#121826;border:1px solid #2a3348;border-radius:12px;"
+                    f"padding:0.75rem 0.6rem;min-height:104px;'>"
+                    f"<div style='font-size:0.86rem;margin-bottom:0.3rem;color:#8b95a8;font-weight:600;'>"
                     f"{escape(lab)}</div>"
                     f"<div style='font-size:1.18rem;font-weight:800;margin-bottom:0.4rem;"
-                    f"line-height:1.25;color:#111827;'>{escape(str(val))}</div>"
+                    f"line-height:1.25;color:#f2f5fa;'>{escape(str(val))}</div>"
                     f"<div>{_status_pill(badge)}</div>"
                     f"</div>",
                     unsafe_allow_html=True,
