@@ -65,7 +65,7 @@ st.markdown(
       margin-top: -40px !important;
       margin-bottom: 0.55rem !important;
     }
-    /* 사이드바 << >> : Material 아이콘 글자색만 노란색 */
+    /* 사이드바 << >> : Material 아이콘 숨기고 노란 유니코드로 표시 */
     [data-testid="stSidebarCollapseButton"] button,
     [data-testid="collapsedControl"] button,
     [data-testid="stExpandSidebarButton"] button,
@@ -73,19 +73,36 @@ st.markdown(
       background: transparent !important;
       border: none !important;
       box-shadow: none !important;
+      position: relative !important;
+      min-width: 2rem !important;
+      min-height: 2rem !important;
     }
     [data-testid="stSidebarCollapseButton"] [data-testid="stIconMaterial"],
     [data-testid="collapsedControl"] [data-testid="stIconMaterial"],
     [data-testid="stExpandSidebarButton"] [data-testid="stIconMaterial"],
-    [data-testid="stSidebarCollapsedControl"] [data-testid="stIconMaterial"],
-    [data-testid="stSidebarCollapseButton"] span[color],
-    [data-testid="collapsedControl"] span[color],
-    [data-testid="stExpandSidebarButton"] span[color],
-    [data-testid="stSidebarCollapsedControl"] span[color] {
+    [data-testid="stSidebarCollapsedControl"] [data-testid="stIconMaterial"] {
+      font-size: 0 !important;
+      width: 0 !important;
+      height: 0 !important;
+      overflow: hidden !important;
+      opacity: 0 !important;
+      color: transparent !important;
+    }
+    [data-testid="stSidebarCollapseButton"] button::after {
+      content: "≪";
       color: #ffd400 !important;
-      -webkit-text-fill-color: #ffd400 !important;
-      font-size: 1.45rem !important;
-      opacity: 1 !important;
+      font-size: 1.55rem !important;
+      font-weight: 800 !important;
+      line-height: 1 !important;
+    }
+    [data-testid="collapsedControl"] button::after,
+    [data-testid="stExpandSidebarButton"] button::after,
+    [data-testid="stSidebarCollapsedControl"] button::after {
+      content: "≫";
+      color: #ffd400 !important;
+      font-size: 1.55rem !important;
+      font-weight: 800 !important;
+      line-height: 1 !important;
     }
     section[data-testid="stSidebar"][aria-expanded="true"] {
         min-width: 400px !important;
@@ -98,7 +115,7 @@ st.markdown(
     }
     section[data-testid="stSidebar"] div[data-testid="stHorizontalBlock"] {
         flex-wrap: nowrap !important;
-        gap: 0.35rem !important;
+        gap: 0.25rem !important;
         align-items: center !important;
     }
     section[data-testid="stSidebar"] div[data-testid="column"] {
@@ -106,6 +123,17 @@ st.markdown(
     }
     section[data-testid="stSidebar"] div[data-testid="stNumberInput"] {
         min-width: 0 !important;
+    }
+    section[data-testid="stSidebar"] div[data-testid="stNumberInput"] input {
+        padding-left: 0.35rem !important;
+        padding-right: 0.35rem !important;
+    }
+    section[data-testid="stSidebar"] .ks-unit-suffix {
+        color: #b0b6c0 !important;
+        font-size: 0.78rem !important;
+        white-space: nowrap !important;
+        line-height: 1.2 !important;
+        margin: 0 !important;
     }
     /* 리스트 상세 버튼: 조회와 같은 primary 하늘색 + 작게 */
     div[data-testid="stAppViewContainer"] .main div[data-testid="stButton"] > button[kind="primary"],
@@ -118,7 +146,7 @@ st.markdown(
         min-height: 1.55rem !important;
         line-height: 1.2 !important;
     }
-    /* 필터검색: 저장/스크리닝 버튼 하단 고정 */
+    /* 필터검색: 저장/스크리닝 — sticky로 사이드바 안에서만 고정 (잘림 방지) */
     #ks-filter-actions { display: none; }
     section[data-testid="stSidebar"][aria-expanded="true"]
       div[data-testid="stHorizontalBlock"]:has(button[kind="secondary"]):has(button[kind="primary"]),
@@ -128,14 +156,14 @@ st.markdown(
     section[data-testid="stSidebar"][aria-expanded="true"]
       div[data-testid="stElementContainer"]:has(#ks-filter-actions)
       + div[data-testid="stElementContainer"] {
-        position: fixed !important;
+        position: sticky !important;
         bottom: 0 !important;
-        left: 0 !important;
-        width: 400px !important;
-        max-width: 400px !important;
+        left: auto !important;
+        width: 100% !important;
+        max-width: 100% !important;
         z-index: 1000001 !important;
         margin: 0 !important;
-        padding: 0.65rem 1rem 1rem 1rem !important;
+        padding: 0.65rem 0.35rem 0.85rem 0.35rem !important;
         background: #0e1117 !important;
         border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
         box-shadow: 0 -12px 28px rgba(0, 0, 0, 0.45) !important;
@@ -143,25 +171,14 @@ st.markdown(
     }
     section[data-testid="stSidebar"]:has(#ks-filter-actions)
       [data-testid="stSidebarUserContent"] {
-        padding-bottom: 5.5rem !important;
+        padding-bottom: 1rem !important;
     }
-    /* 모바일: 사이드바 폭·하단 버튼·로고·본문 패딩 */
+    /* 모바일: 사이드바 폭·로고·본문 패딩 */
     @media (max-width: 768px) {
       section[data-testid="stSidebar"][aria-expanded="true"] {
         min-width: 0 !important;
         max-width: 100% !important;
         width: 100% !important;
-      }
-      section[data-testid="stSidebar"][aria-expanded="true"]
-        div[data-testid="stHorizontalBlock"]:has(button[kind="secondary"]):has(button[kind="primary"]),
-      section[data-testid="stSidebar"][aria-expanded="true"]
-        div[data-testid="element-container"]:has(#ks-filter-actions)
-        + div[data-testid="element-container"],
-      section[data-testid="stSidebar"][aria-expanded="true"]
-        div[data-testid="stElementContainer"]:has(#ks-filter-actions)
-        + div[data-testid="stElementContainer"] {
-        width: 100% !important;
-        max-width: 100% !important;
       }
       #ks-sidebar-logo {
         margin-top: -8px !important;
@@ -180,45 +197,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 inject_list_detail_css()
-
-# 사이드바 << 아이콘 노란색 강제 (Material icon + emotion color attr)
-components.html(
-    """
-<script>
-(function () {
-  const doc = window.parent.document;
-  const win = window.parent;
-  const SEL = [
-    '[data-testid="stSidebarCollapseButton"] [data-testid="stIconMaterial"]',
-    '[data-testid="stSidebarCollapseButton"] span[color]',
-    '[data-testid="collapsedControl"] [data-testid="stIconMaterial"]',
-    '[data-testid="collapsedControl"] span[color]',
-    '[data-testid="stSidebarCollapsedControl"] [data-testid="stIconMaterial"]',
-    '[data-testid="stSidebarCollapsedControl"] span[color]',
-    '[data-testid="stExpandSidebarButton"] [data-testid="stIconMaterial"]',
-    '[data-testid="stExpandSidebarButton"] span[color]'
-  ].join(',');
-  let t = null;
-  function paint() {
-    doc.querySelectorAll(SEL).forEach(function (el) {
-      el.style.setProperty('color', '#ffd400', 'important');
-      el.style.setProperty('-webkit-text-fill-color', '#ffd400', 'important');
-      el.style.setProperty('opacity', '1', 'important');
-      if (el.hasAttribute('color')) el.setAttribute('color', '#ffd400');
-    });
-  }
-  function schedule() {
-    if (t) win.clearTimeout(t);
-    t = win.setTimeout(paint, 30);
-  }
-  paint();
-  new win.MutationObserver(schedule).observe(doc.body, { childList: true, subtree: true });
-})();
-</script>
-    """,
-    height=0,
-    width=0,
-)
 
 if not financials_exists():
     st.error("재무 스냅샷이 없습니다. PC에서 `python scripts/build_snapshot.py` 실행 후 push 하세요.")
