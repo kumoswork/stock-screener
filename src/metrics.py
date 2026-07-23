@@ -1,21 +1,22 @@
-"""Financial ratio and absolute metric calculations from DART account data."""
+"""Financial ratio and absolute metric calculations (DART / Naver account rows)."""
 
 from __future__ import annotations
 
 import re
+from typing import Any
 
 import pandas as pd
 
 from dart_api import get_db, init_db
 
 ACCOUNT_ALIASES = {
-    # 엑셀 계정 매핑 기준 + DART 표기 변형
+    # 엑셀 계정 매핑 + DART/네이버(Wisereport) 표기
     "current_assets": ["유동자산"],
     "cash": ["현금및현금성자산", "현금 및 현금성 자산", "현금", "예치금"],
     "short_term_financial": [
+        "단기금융자산",
         "단기금융상품",
         "단기투자자산",
-        "단기금융자산",
         "유동금융자산",
         "당기손익-공정가치측정금융자산",  # JYP 등
         "당기손익-공정가치금융자산",
@@ -26,6 +27,7 @@ ACCOUNT_ALIASES = {
     "current_liabilities": ["유동부채"],
     "total_liabilities": ["부채총계", "부채합계"],
     "total_equity": [
+        "지배주주지분",  # 네이버 우선
         "자본총계",
         "자본합계",
         "지배기업의 소유주에게 귀속되는 자본",
@@ -34,7 +36,7 @@ ACCOUNT_ALIASES = {
         "지배기업소유주지분",
     ],
     "advances": ["선수금", "선수수익", "예수금", "계약부채"],  # 행복한 부채
-    "revenue": ["매출액", "영업수익", "수익(매출액)", "수익"],
+    "revenue": ["매출액(수익)", "매출액", "영업수익", "수익(매출액)", "수익"],
     "cogs": ["매출원가", "영업원가", "매출원가 및 용역원가"],
     "gross_profit": ["매출총이익"],
     "sga": [
@@ -43,9 +45,11 @@ ACCOUNT_ALIASES = {
         "판매비와관리비(일반)",
         "판매비와관리비 및 기타판매비와관리비",
     ],
-    "operating_profit": ["영업이익", "영업손실", "영업이익(손실)"],
-    # 강원랜드 등: '당기순이익'=0 더미 → 지배지분 귀속 우선
+    "operating_profit": ["영업이익", "영업손실", "영업이익(손실)", "영업이익(발표기준)"],
+    # 지배지분 순이익 우선 (네이버/DART 공통)
     "net_income": [
+        "(지배주주지분)당기순이익",
+        "*(지배주주지분)연결당기순이익",
         "지배기업의소유주에게귀속되는당기순이익(손실)",
         "지배기업의 소유주에게 귀속되는 당기순이익(손실)",
         "당기순이익(손실)",
@@ -55,6 +59,7 @@ ACCOUNT_ALIASES = {
         "분기순이익",
     ],
     "pretax_income": [
+        "법인세비용차감전계속사업이익",
         "법인세비용차감전순이익(손실)",
         "법인세비용차감전순이익",
         "법인세차감전순이익",
@@ -62,12 +67,12 @@ ACCOUNT_ALIASES = {
     ],
     "income_tax": ["법인세비용(수익)", "법인세비용", "법인세등"],
     "operating_cash_flow": [
-        "영업활동현금흐름",
         "영업활동으로인한현금흐름",
+        "영업활동현금흐름",
         "영업활동에서의현금흐름",
-        "영업활동으로부터창출된현금흐름",  # 금양그린파워 등
+        "영업활동으로부터창출된현금흐름",
     ],
-    "capex": ["유형자산의취득", "유형자산의증가"],
+    "capex": ["*CAPEX", "CAPEX", "유형자산의취득", "유형자산의증가"],
     "dividends_paid": ["배당금의지급", "배당금지급"],
 }
 
@@ -80,9 +85,10 @@ _NUM_PREFIX_RE = re.compile(
 
 
 def _norm_account(name: str) -> str:
-    """'Ⅵ. 당기순이익' → '당기순이익' 처럼 번호/공백 제거."""
+    """'Ⅵ. 당기순이익' / '....재고자산' → 정규화."""
     s = str(name).strip()
     s = _NUM_PREFIX_RE.sub("", s)
+    s = re.sub(r"^[\.\*]+", "", s)
     return re.sub(r"\s+", "", s)
 
 
@@ -164,7 +170,109 @@ def _resolve_total_equity(accounts: dict[str, float | None]) -> float | None:
 
 
 def _extract_accounts(group: pd.DataFrame) -> dict[str, float | None]:
+    return _extract_accounts_from_rows(group)
+
+
+def _extract_accounts_from_rows(group: pd.DataFrame) -> dict[str, float | None]:
     return {key: _pick_amount(group, aliases) for key, aliases in ACCOUNT_ALIASES.items()}
+
+
+def compute_metrics_row(
+    stock_code: str,
+    corp_name: str,
+    a: dict[str, float | None],
+    p: dict[str, float | None] | None = None,
+) -> dict[str, Any]:
+    """계정 dict(당기/전기) → 스크리너 지표 1행."""
+    p = p or {}
+    a = dict(a)
+    p = dict(p)
+    a["total_equity"] = _resolve_total_equity(a)
+    if p:
+        p["total_equity"] = _resolve_total_equity(p)
+
+    gross_profit = a.get("gross_profit")
+    if gross_profit is None and a.get("revenue") is not None and a.get("cogs") is not None:
+        gross_profit = a["revenue"] - a["cogs"]  # type: ignore[operator]
+
+    cash_total = _sum_non_null(a.get("cash"), a.get("short_term_financial"))
+    revenue = a.get("revenue")
+    net_income = _resolve_net_income(a)
+    sga = a.get("sga")
+    sga_ratio = _pct_ratio(sga, revenue)
+    prev_sga_ratio = _pct_ratio(p.get("sga"), p.get("revenue"))
+    revenue_growth = _growth(revenue, p.get("revenue"))
+    debt_growth = _growth(a.get("total_liabilities"), p.get("total_liabilities"))
+
+    return {
+        "stock_code": str(stock_code).zfill(6),
+        "corp_name": corp_name,
+        "revenue": revenue,
+        "operating_profit": a.get("operating_profit"),
+        "net_income": net_income,
+        # B경제
+        "cash_survival_years": _cash_survival_years(cash_total, net_income),
+        "inventory_months": _inventory_months(a.get("inventory"), a.get("cogs")),
+        "cash_flow_match": _ratio(a.get("operating_cash_flow"), net_income),
+        "cash_to_revenue": _pct_ratio(cash_total, revenue),
+        "cash_to_op_profit_x3": _pct_ratio(
+            cash_total,
+            a["operating_profit"] * 3 if a.get("operating_profit") is not None else None,
+        ),
+        "happy_debt_growth": _growth(a.get("advances"), p.get("advances")),
+        "sga_ratio": sga_ratio,
+        "sga_ratio_change": (
+            sga_ratio - prev_sga_ratio
+            if sga_ratio is not None and prev_sga_ratio is not None
+            else None
+        ),
+        # 안전성
+        "current_ratio": _pct_ratio(a.get("current_assets"), a.get("current_liabilities")),
+        "quick_ratio": _pct_ratio(
+            (
+                a["current_assets"] - a["inventory"]
+                if a.get("current_assets") is not None and a.get("inventory") is not None
+                else None
+            ),
+            a.get("current_liabilities"),
+        ),
+        "debt_ratio": _pct_ratio(a.get("total_liabilities"), a.get("total_equity")),
+        "cash_months": _cash_months_sga(cash_total, sga),
+        # 수익/성장성
+        "revenue_growth": revenue_growth,
+        "gross_margin": _pct_ratio(gross_profit, revenue),
+        "operating_margin": _pct_ratio(a.get("operating_profit"), revenue),
+        "net_margin": _pct_ratio(net_income, revenue),
+        # 효율성
+        "roa": _pct_ratio(net_income, a.get("total_assets")),
+        "roe": _pct_ratio(net_income, a.get("total_equity")),
+        "inventory_turnover": _turnover(revenue, a.get("inventory")),
+        "receivable_turnover": _turnover(revenue, a.get("receivables")),
+        # check!!
+        "debt_growth": debt_growth,
+        "revenue_minus_debt_growth": (
+            revenue_growth - debt_growth
+            if revenue_growth is not None and debt_growth is not None
+            else None
+        ),
+        # raw accounts for detail modal
+        "current_assets": a.get("current_assets"),
+        "cash": a.get("cash"),
+        "short_term_financial": a.get("short_term_financial"),
+        "receivables": a.get("receivables"),
+        "inventory": a.get("inventory"),
+        "total_assets": a.get("total_assets"),
+        "current_liabilities": a.get("current_liabilities"),
+        "total_liabilities": a.get("total_liabilities"),
+        "total_equity": a.get("total_equity"),
+        "advances": a.get("advances"),
+        "cogs": a.get("cogs"),
+        "gross_profit": gross_profit,
+        "sga": sga,
+        "operating_cash_flow": a.get("operating_cash_flow"),
+        "capex": a.get("capex"),
+        "dividends_paid": a.get("dividends_paid"),
+    }
 
 
 def load_financial_metrics(bsns_year: str, prev_year: str | None = None) -> pd.DataFrame:
@@ -203,85 +311,7 @@ def load_financial_metrics(bsns_year: str, prev_year: str | None = None) -> pd.D
 
         a = _extract_accounts(group)
         p = _extract_accounts(prev_group) if not prev_group.empty else {}
-        a["total_equity"] = _resolve_total_equity(a)
-        if p:
-            p["total_equity"] = _resolve_total_equity(p)
-
-        gross_profit = a["gross_profit"]
-        if gross_profit is None and a["revenue"] is not None and a["cogs"] is not None:
-            gross_profit = a["revenue"] - a["cogs"]
-
-        cash_total = _sum_non_null(a["cash"], a["short_term_financial"])
-        revenue = a["revenue"]
-        net_income = _resolve_net_income(a)
-        sga = a["sga"]
-        sga_ratio = _pct_ratio(sga, revenue)
-        prev_sga_ratio = _pct_ratio(p.get("sga"), p.get("revenue"))
-        revenue_growth = _growth(revenue, p.get("revenue"))
-        debt_growth = _growth(a["total_liabilities"], p.get("total_liabilities"))
-
-        metrics = {
-            "stock_code": stock_code,
-            "corp_name": corp_name,
-            "revenue": revenue,
-            "operating_profit": a["operating_profit"],
-            "net_income": net_income,
-            # B경제
-            "cash_survival_years": _cash_survival_years(cash_total, net_income),
-            "inventory_months": _inventory_months(a["inventory"], a["cogs"]),
-            "cash_flow_match": _ratio(a["operating_cash_flow"], net_income),
-            "cash_to_revenue": _pct_ratio(cash_total, revenue),
-            "cash_to_op_profit_x3": _pct_ratio(
-                cash_total,
-                a["operating_profit"] * 3 if a["operating_profit"] is not None else None,
-            ),
-            "happy_debt_growth": _growth(a["advances"], p.get("advances")),
-            "sga_ratio": sga_ratio,
-            "sga_ratio_change": (sga_ratio - prev_sga_ratio) if sga_ratio is not None and prev_sga_ratio is not None else None,
-            # 안전성
-            "current_ratio": _pct_ratio(a["current_assets"], a["current_liabilities"]),
-            "quick_ratio": _pct_ratio(
-                (a["current_assets"] - a["inventory"]) if a["current_assets"] is not None and a["inventory"] is not None else None,
-                a["current_liabilities"],
-            ),
-            "debt_ratio": _pct_ratio(a["total_liabilities"], a["total_equity"]),
-            "cash_months": _cash_months_sga(cash_total, sga),
-            # 수익/성장성
-            "revenue_growth": revenue_growth,
-            "gross_margin": _pct_ratio(gross_profit, revenue),
-            "operating_margin": _pct_ratio(a["operating_profit"], revenue),
-            "net_margin": _pct_ratio(net_income, revenue),
-            # 효율성
-            "roa": _pct_ratio(net_income, a["total_assets"]),
-            "roe": _pct_ratio(net_income, a["total_equity"]),
-            "inventory_turnover": _turnover(revenue, a["inventory"]),
-            "receivable_turnover": _turnover(revenue, a["receivables"]),
-            # check!!
-            "debt_growth": debt_growth,
-            "revenue_minus_debt_growth": (
-                revenue_growth - debt_growth
-                if revenue_growth is not None and debt_growth is not None
-                else None
-            ),
-            # raw accounts for detail modal
-            "current_assets": a["current_assets"],
-            "cash": a["cash"],
-            "short_term_financial": a["short_term_financial"],
-            "receivables": a["receivables"],
-            "inventory": a["inventory"],
-            "total_assets": a["total_assets"],
-            "current_liabilities": a["current_liabilities"],
-            "total_liabilities": a["total_liabilities"],
-            "total_equity": a["total_equity"],
-            "advances": a["advances"],
-            "cogs": a["cogs"],
-            "gross_profit": gross_profit,
-            "sga": sga,
-            "operating_cash_flow": a["operating_cash_flow"],
-            "capex": a.get("capex"),
-            "dividends_paid": a.get("dividends_paid"),
-        }
-        rows.append(metrics)
+        rows.append(compute_metrics_row(str(stock_code), corp_name, a, p))
 
     return pd.DataFrame(rows)
 
