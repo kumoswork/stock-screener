@@ -129,7 +129,7 @@ st.markdown(
     }
     section[data-testid="stSidebar"] div[data-testid="column"] {
         min-width: 0 !important;
-        overflow: hidden !important;
+        overflow: visible !important;
     }
     section[data-testid="stSidebar"] div[data-testid="stNumberInput"] {
         min-width: 0 !important;
@@ -168,11 +168,36 @@ st.markdown(
         min-height: 1.55rem !important;
         line-height: 1.2 !important;
     }
-    /* 필터 저장/스크리닝: 하단 고정 해제 → 사이드바 안에서 일반 배치 */
+    /* 사이드바 스크롤 영역 */
+    section[data-testid="stSidebar"] [data-testid="stSidebarContent"] {
+      overflow-x: hidden !important;
+      overflow-y: auto !important;
+    }
+    /* 필터 저장/스크리닝: 사이드바 하단 sticky (잘림 없이) */
     #ks-filter-actions { display: none; }
+    section[data-testid="stSidebar"]
+      div[data-testid="stHorizontalBlock"]:has(button[kind="secondary"]):has(button[kind="primary"]),
+    section[data-testid="stSidebar"]
+      div[data-testid="stElementContainer"]:has(#ks-filter-actions)
+      + div[data-testid="stElementContainer"],
+    section[data-testid="stSidebar"]
+      div[data-testid="element-container"]:has(#ks-filter-actions)
+      + div[data-testid="element-container"] {
+        position: sticky !important;
+        bottom: 0 !important;
+        z-index: 1000001 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0.7rem 0.15rem 0.85rem 0.15rem !important;
+        background: #0e1117 !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
+        box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.45) !important;
+        box-sizing: border-box !important;
+    }
     section[data-testid="stSidebar"]:has(#ks-filter-actions)
       [data-testid="stSidebarUserContent"] {
-        padding-bottom: 0.75rem !important;
+        padding-bottom: 5.5rem !important;
     }
     /* 모바일 */
     @media (max-width: 768px) {
