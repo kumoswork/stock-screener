@@ -7,7 +7,7 @@ from html import escape
 import pandas as pd
 import streamlit as st
 
-from criteria import CATEGORY_LABELS, CATEGORY_WEIGHTS, categories_order, score_row, specs_in_category
+from criteria import CATEGORY_LABELS, CATEGORY_WEIGHTS, score_row, specs_in_category
 from screener import format_cell, format_metric_value
 from ui_theme import GRADE_UI
 
@@ -154,9 +154,12 @@ def detail_dialog(stock_code: str) -> None:
     badges = sc["badges"]
     cat_scores: dict = sc.get("category_scores") or {}
 
+    # 상세 섹션과 같은 순서로 카테고리 점수 칩 배치
     cat_chips = []
-    for cat_key in categories_order():
-        label = CATEGORY_LABELS.get(cat_key, cat_key)
+    for title, cat_key in DETAIL_SECTION_ORDER:
+        if not cat_key:
+            continue
+        label = CATEGORY_LABELS.get(cat_key, title)
         cs = cat_scores.get(cat_key)
         val = f"{int(cs)}" if cs is not None else "—"
         pct = int(round(CATEGORY_WEIGHTS.get(cat_key, 0) * 100))
