@@ -56,12 +56,14 @@ st.markdown(
     <style>
     div[data-testid="stSidebarContent"] { padding-top: 0.15rem; }
     section[data-testid="stSidebar"] div[data-testid="stImage"] {
-      margin-bottom: 0.35rem;
+      margin-bottom: 0.45rem;
+      display: flex !important;
+      justify-content: center !important;
     }
     section[data-testid="stSidebar"] div[data-testid="stImage"] img {
       border-radius: 4px;
-      width: 139px !important;
-      height: 35px !important;
+      width: 200px !important;
+      height: auto !important;
       object-fit: contain;
     }
     section[data-testid="stSidebar"][aria-expanded="true"] {
@@ -258,7 +260,7 @@ def _on_stock_search_change() -> None:
 _LOGO_PATH = Path(__file__).resolve().parent / "assets" / "kumo_logo.png"
 with st.sidebar:
     if _LOGO_PATH.exists():
-        st.image(str(_LOGO_PATH), width=139)
+        st.image(str(_LOGO_PATH), width=200)
     else:
         st.title("스크리너")
     ui_mode = st.radio(
