@@ -196,58 +196,67 @@ def _int_number_input(label: str, key: str, help_text: str | None = None) -> int
 
 
 def render_sidebar_filters(filters: dict) -> None:
-    """체크박스 아래 줄에 입력+단위 (가로 잘림 방지)."""
+    """체크 | 입력 | 단위 — 한 줄 배치."""
     import streamlit as st
 
     for category in categories_order():
         st.markdown(f"**{category}**")
         for spec in specs_in_category(category):
-            st.checkbox(
-                spec.label,
-                key=f"f_{spec.key}",
-                help=f"{spec.help_text} | 우수: {_excellent_hint(spec)}",
-                on_change=_on_filter_toggle,
-                args=(spec.key,),
-            )
-            if not st.session_state.get(f"f_{spec.key}"):
-                continue
-            _ensure_defaults(spec)
-
             if spec.direction == "range":
-                unit = _unit_after_label(spec, "range")
-                c_lo, c_tilde, c_hi, c_unit = st.columns([1.1, 0.3, 1.1, 0.7])
-                with c_lo:
-                    lo = _int_number_input("이상", f"f_{spec.key}_min", "이상")
-                with c_tilde:
-                    st.markdown(
-                        '<p class="ks-unit-suffix" style="text-align:center;">～</p>',
-                        unsafe_allow_html=True,
+                c_chk, c_lo, c_tilde, c_hi, c_unit = st.columns([1.25, 0.9, 0.25, 0.9, 0.55])
+                with c_chk:
+                    st.checkbox(
+                        spec.label,
+                        key=f"f_{spec.key}",
+                        help=f"{spec.help_text} | 우수: {_excellent_hint(spec)}",
+                        on_change=_on_filter_toggle,
+                        args=(spec.key,),
                     )
-                with c_hi:
-                    hi = _int_number_input("이하", f"f_{spec.key}_max", "이하")
-                with c_unit:
-                    if unit:
+                if st.session_state.get(f"f_{spec.key}"):
+                    _ensure_defaults(spec)
+                    unit = _unit_after_label(spec, "range")
+                    with c_lo:
+                        lo = _int_number_input("이상", f"f_{spec.key}_min", "이상")
+                    with c_tilde:
                         st.markdown(
-                            f'<p class="ks-unit-suffix">{unit}</p>',
+                            '<p class="ks-unit-suffix" style="text-align:center;">～</p>',
                             unsafe_allow_html=True,
                         )
-                filters[spec.key] = (lo, hi)
+                    with c_hi:
+                        hi = _int_number_input("이하", f"f_{spec.key}_max", "이하")
+                    with c_unit:
+                        if unit:
+                            st.markdown(
+                                f'<p class="ks-unit-suffix">{unit}</p>',
+                                unsafe_allow_html=True,
+                            )
+                    filters[spec.key] = (lo, hi)
             else:
-                kind = "min" if spec.direction == "min" else "max"
-                suffix = _unit_after_label(spec, kind)
-                c_val, c_unit = st.columns([1.2, 1.0])
-                with c_val:
-                    if spec.direction == "min":
-                        lo = _int_number_input("min", f"f_{spec.key}_min")
-                        filters[spec.key] = (lo, None)
-                    else:
-                        hi = _int_number_input("max", f"f_{spec.key}_max")
-                        filters[spec.key] = (None, hi)
-                with c_unit:
-                    st.markdown(
-                        f'<p class="ks-unit-suffix">{suffix}</p>',
-                        unsafe_allow_html=True,
+                c_chk, c_val, c_unit = st.columns([1.35, 1.0, 0.9])
+                with c_chk:
+                    st.checkbox(
+                        spec.label,
+                        key=f"f_{spec.key}",
+                        help=f"{spec.help_text} | 우수: {_excellent_hint(spec)}",
+                        on_change=_on_filter_toggle,
+                        args=(spec.key,),
                     )
+                if st.session_state.get(f"f_{spec.key}"):
+                    _ensure_defaults(spec)
+                    kind = "min" if spec.direction == "min" else "max"
+                    suffix = _unit_after_label(spec, kind)
+                    with c_val:
+                        if spec.direction == "min":
+                            lo = _int_number_input("min", f"f_{spec.key}_min")
+                            filters[spec.key] = (lo, None)
+                        else:
+                            hi = _int_number_input("max", f"f_{spec.key}_max")
+                            filters[spec.key] = (None, hi)
+                    with c_unit:
+                        st.markdown(
+                            f'<p class="ks-unit-suffix">{suffix}</p>',
+                            unsafe_allow_html=True,
+                        )
         st.divider()
 
 
@@ -256,9 +265,10 @@ def render_abs_filters(filters: dict) -> None:
 
     st.markdown("**절대 금액**")
     for key, label in ABS_SPECS:
-        st.checkbox(label, key=f"abs_{key}")
+        c_chk, c_val, c_unit, c_suf = st.columns([1.15, 0.95, 0.9, 0.55])
+        with c_chk:
+            st.checkbox(label, key=f"abs_{key}")
         if st.session_state.get(f"abs_{key}"):
-            c_val, c_unit, c_suf = st.columns([1.1, 1.0, 0.7])
             with c_val:
                 lo = _int_number_input("lo", f"abs_{key}_lo")
             with c_unit:

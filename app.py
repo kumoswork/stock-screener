@@ -123,27 +123,39 @@ st.markdown(
         padding-right: 1.5rem;
     }
     section[data-testid="stSidebar"] div[data-testid="stHorizontalBlock"] {
-        flex-wrap: wrap !important;
-        gap: 0.2rem 0.35rem !important;
+        flex-wrap: nowrap !important;
+        gap: 0.3rem !important;
         align-items: center !important;
     }
     section[data-testid="stSidebar"] div[data-testid="column"] {
         min-width: 0 !important;
+        overflow: hidden !important;
     }
     section[data-testid="stSidebar"] div[data-testid="stNumberInput"] {
         min-width: 0 !important;
         width: 100% !important;
     }
     section[data-testid="stSidebar"] div[data-testid="stNumberInput"] input {
-        padding-left: 0.4rem !important;
-        padding-right: 0.4rem !important;
+        padding-left: 0.35rem !important;
+        padding-right: 0.35rem !important;
+        font-size: 0.9rem !important;
+    }
+    /* +/- 스테퍼 폭 줄이기 */
+    section[data-testid="stSidebar"] div[data-testid="stNumberInput"] button {
+        min-width: 1.6rem !important;
+        width: 1.6rem !important;
+        padding: 0 !important;
+    }
+    section[data-testid="stSidebar"] div[data-testid="stSelectbox"] {
+        min-width: 0 !important;
     }
     section[data-testid="stSidebar"] .ks-unit-suffix {
         color: #b0b6c0 !important;
-        font-size: 0.8rem !important;
+        font-size: 0.78rem !important;
         white-space: nowrap !important;
         line-height: 1.2 !important;
-        margin: 0.35rem 0 0 0 !important;
+        margin: 0 !important;
+        padding-top: 0.35rem !important;
     }
     /* 리스트 상세 버튼 */
     div[data-testid="stAppViewContainer"] .main div[data-testid="stButton"] > button[kind="primary"],
