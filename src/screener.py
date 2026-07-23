@@ -151,21 +151,58 @@ def _ensure_defaults(spec) -> None:
 
 
 def render_sidebar_filters(filters: dict) -> None:
+    """체크박스와 이상/이하 입력을 한 줄에 배치."""
     import streamlit as st
 
     for category in categories_order():
         st.markdown(f"**{category}**")
         for spec in specs_in_category(category):
-            st.checkbox(
-                spec.label,
-                key=f"f_{spec.key}",
-                help=f"{spec.help_text} | 우수: {_excellent_hint(spec)}",
-                on_change=_on_filter_toggle,
-                args=(spec.key,),
-            )
-            if st.session_state.get(f"f_{spec.key}"):
-                _ensure_defaults(spec)
-                _render_inline_inputs(spec, filters)
+            if spec.direction == "range":
+                c_chk, c_a, c_min, c_b, c_max = st.columns([2.4, 0.7, 1.0, 0.7, 1.0])
+                with c_chk:
+                    st.checkbox(
+                        spec.label,
+                        key=f"f_{spec.key}",
+                        help=f"{spec.help_text} | 우수: {_excellent_hint(spec)}",
+                        on_change=_on_filter_toggle,
+                        args=(spec.key,),
+                    )
+                if st.session_state.get(f"f_{spec.key}"):
+                    _ensure_defaults(spec)
+                    with c_a:
+                        st.markdown("<div style='padding-top:0.5rem;font-size:0.8rem;'>이상</div>", unsafe_allow_html=True)
+                    with c_min:
+                        lo = st.number_input("min", key=f"f_{spec.key}_min", label_visibility="collapsed")
+                    with c_b:
+                        st.markdown("<div style='padding-top:0.5rem;font-size:0.8rem;'>이하</div>", unsafe_allow_html=True)
+                    with c_max:
+                        hi = st.number_input("max", key=f"f_{spec.key}_max", label_visibility="collapsed")
+                    filters[spec.key] = (lo, hi)
+            else:
+                c_chk, c_lbl, c_inp = st.columns([2.6, 0.8, 1.2])
+                with c_chk:
+                    st.checkbox(
+                        spec.label,
+                        key=f"f_{spec.key}",
+                        help=f"{spec.help_text} | 우수: {_excellent_hint(spec)}",
+                        on_change=_on_filter_toggle,
+                        args=(spec.key,),
+                    )
+                if st.session_state.get(f"f_{spec.key}"):
+                    _ensure_defaults(spec)
+                    with c_lbl:
+                        tag = "이상" if spec.direction == "min" else "이하"
+                        st.markdown(
+                            f"<div style='padding-top:0.5rem;font-size:0.8rem;'>{tag}</div>",
+                            unsafe_allow_html=True,
+                        )
+                    with c_inp:
+                        if spec.direction == "min":
+                            lo = st.number_input("min", key=f"f_{spec.key}_min", label_visibility="collapsed")
+                            filters[spec.key] = (lo, None)
+                        else:
+                            hi = st.number_input("max", key=f"f_{spec.key}_max", label_visibility="collapsed")
+                            filters[spec.key] = (None, hi)
         st.divider()
 
 
@@ -174,23 +211,17 @@ def render_abs_filters(filters: dict) -> None:
 
     st.markdown("**절대 금액**")
     for key, label in ABS_SPECS:
-        st.checkbox(label, key=f"abs_{key}")
+        c_chk, c_lbl, c_inp, c_unit = st.columns([2.2, 0.7, 1.0, 1.0])
+        with c_chk:
+            st.checkbox(label, key=f"abs_{key}")
         if st.session_state.get(f"abs_{key}"):
-            unit = st.radio(
-                "단위",
-                ["억원", "조원"],
-                horizontal=True,
-                key=f"abs_{key}_unit",
-                label_visibility="collapsed",
-            )
-            mult = 1e8 if unit == "억원" else 1e12
-            c1, c2, c3 = st.columns([1.2, 1, 1])
-            with c1:
-                st.caption("이상")
-            with c2:
+            with c_lbl:
+                st.markdown("<div style='padding-top:0.5rem;font-size:0.8rem;'>이상</div>", unsafe_allow_html=True)
+            with c_inp:
                 lo = st.number_input("lo", key=f"abs_{key}_lo", label_visibility="collapsed")
-            with c3:
-                st.caption(unit)
+            with c_unit:
+                unit = st.selectbox("단위", ["억원", "조원"], key=f"abs_{key}_unit", label_visibility="collapsed")
+            mult = 1e8 if unit == "억원" else 1e12
             filters[key] = (lo * mult if lo else None, None)
     st.divider()
 
@@ -206,36 +237,6 @@ def _excellent_hint(spec) -> str:
     if spec.direction == "range":
         return f"{spec.excellent_min:g}~{spec.excellent_max:g}{spec.unit_hint}"
     return ""
-
-
-def _render_inline_inputs(spec, filters: dict) -> None:
-    import streamlit as st
-
-    if spec.direction == "min":
-        c1, c2 = st.columns([1.1, 1.4])
-        with c1:
-            st.caption("이상")
-        with c2:
-            lo = st.number_input("min", key=f"f_{spec.key}_min", label_visibility="collapsed")
-        filters[spec.key] = (lo, None)
-    elif spec.direction in ("max", "max_change"):
-        c1, c2 = st.columns([1.1, 1.4])
-        with c1:
-            st.caption("이하")
-        with c2:
-            hi = st.number_input("max", key=f"f_{spec.key}_max", label_visibility="collapsed")
-        filters[spec.key] = (None, hi)
-    elif spec.direction == "range":
-        c1, c2, c3, c4 = st.columns([0.9, 1.1, 0.9, 1.1])
-        with c1:
-            st.caption("이상")
-        with c2:
-            lo = st.number_input("rmin", key=f"f_{spec.key}_min", label_visibility="collapsed")
-        with c3:
-            st.caption("이하")
-        with c4:
-            hi = st.number_input("rmax", key=f"f_{spec.key}_max", label_visibility="collapsed")
-        filters[spec.key] = (lo, hi)
 
 
 def format_display_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -287,3 +288,26 @@ def _format_krw_big(value) -> str:
 
 def format_account_krw(value) -> str:
     return _format_krw_big(value)
+
+
+def format_cell(row: pd.Series, col: str) -> str:
+    if col not in row.index or pd.isna(row.get(col)):
+        return "-"
+    if col == "current_price":
+        return _format_price(row[col])
+    if col in ("revenue", "operating_profit", "net_income"):
+        return _format_krw_big(row[col])
+    if col == "attractiveness":
+        return str(int(row[col]))
+    if col in (
+        "pct_from_low",
+        "range_position",
+        "bottom_dwell_ratio",
+        "current_ratio",
+        "debt_ratio",
+        "roe",
+        "operating_margin",
+        "revenue_growth",
+    ):
+        return f"{float(row[col]):.1f}"
+    return str(row[col])

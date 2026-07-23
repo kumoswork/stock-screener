@@ -130,7 +130,7 @@ def collect_filter_state(market_label: str, filter_keys: list[str], abs_keys: li
 
     return {
         "market": market_label,
-        "search": st.session_state.get("stock_search", "") or "",
+        "search": st.session_state.get("stock_search_select", "") or "",
         "enabled": enabled,
         "ranges": ranges,
         "abs": abs_state,
@@ -149,8 +149,8 @@ def seed_session_from_saved(saved: dict[str, Any]) -> None:
 
     if "market" in saved and "market_radio" not in st.session_state:
         st.session_state["market_radio"] = saved["market"]
-    if "search" in saved and "stock_search" not in st.session_state:
-        st.session_state["stock_search"] = saved.get("search") or ""
+    if "search" in saved and "stock_search_select" not in st.session_state:
+        st.session_state["stock_search_select"] = saved.get("search") or "— 검색 안 함 —"
 
     for key in saved.get("enabled", []):
         st.session_state[f"f_{key}"] = True

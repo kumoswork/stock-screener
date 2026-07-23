@@ -26,7 +26,7 @@ from screener import (  # noqa: E402
     all_filter_keys,
     apply_range_filters,
     attach_scores,
-    format_display_df,
+    format_cell,
     merge_financial_and_price,
     render_abs_filters,
     render_sidebar_filters,
@@ -41,11 +41,15 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# 사이드바 접으면 본문이 왼쪽으로 자연스럽게 확장되도록 고정 width 강제 제거
 st.markdown(
     """
     <style>
-    section[data-testid="stSidebar"] { min-width: 420px !important; width: 420px !important; }
     div[data-testid="stSidebarContent"] { padding-top: 0.4rem; }
+    section[data-testid="stSidebar"][aria-expanded="true"] {
+        min-width: 400px;
+        max-width: 460px;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -67,6 +71,19 @@ _meta = financials_meta()
 financials = get_financials(_meta)
 ABS_KEYS = ["revenue", "operating_profit", "net_income"]
 FILTER_KEYS = all_filter_keys()
+
+# 자동완성용 라벨
+_stock_labels = (
+    financials.assign(
+        _label=financials["corp_name"].astype(str)
+        + " ("
+        + financials["stock_code"].astype(str).str.zfill(6)
+        + ")"
+    )["_label"]
+    .drop_duplicates()
+    .sort_values()
+    .tolist()
+)
 
 if "price_cache" not in st.session_state:
     st.session_state["price_cache"] = {}
@@ -113,11 +130,11 @@ def fetch_prices_for_codes(codes: list[str], name_map: dict[str, str]) -> pd.Dat
 with st.sidebar:
     st.title("필터")
 
-    search = st.text_input(
-        "종목 검색",
-        key="stock_search",
-        placeholder="코드 또는 종목명 (필터와 별개)",
-        help="입력 시 해당 종목만 표시합니다. 사이드바 필터는 무시됩니다.",
+    search_choice = st.selectbox(
+        "종목 검색 (자동완성)",
+        options=["— 검색 안 함 —"] + _stock_labels,
+        key="stock_search_select",
+        help="입력하면 목록이 필터됩니다. 선택 시 해당 종목만 보고, 아래 필터는 무시됩니다.",
     )
 
     market_label = st.radio(
@@ -152,27 +169,25 @@ with st.sidebar:
 
 # ---------- Main ----------
 st.title("국내 상장주 스크리너")
-st.caption("재무 필터 → 해당 종목 주가 조회 → 매력도 점수 · 행 선택 시 상세")
+st.caption("재무 필터 → 해당 종목 주가 조회 → 매력도 · 종목 옆 상세보기")
 
 view = financials.copy()
 if market != "ALL" and "market" in view.columns:
     view = view[view["market"] == market].copy()
 
-search_q = (search or "").strip()
-search_mode = bool(search_q)
-
+search_mode = search_choice != "— 검색 안 함 —"
 fin_filters, price_filters = split_filters(filters)
 
 if run or search_mode or "last_result" in st.session_state:
     if run or search_mode:
         if search_mode:
-            q = search_q.lower()
-            codes = view["stock_code"].astype(str).str.zfill(6)
-            names = view["corp_name"].astype(str)
-            candidates = view[
-                codes.str.contains(q, case=False, na=False)
-                | names.str.lower().str.contains(q, na=False)
-            ].copy()
+            # "이름 (코드)" → 코드 추출
+            code = search_choice.rsplit("(", 1)[-1].rstrip(")")
+            candidates = view[view["stock_code"].astype(str).str.zfill(6) == code.zfill(6)].copy()
+            if candidates.empty:
+                # 이름 부분 일치 fallback
+                name = search_choice.rsplit(" (", 1)[0]
+                candidates = view[view["corp_name"].astype(str) == name].copy()
             st.write(f"검색 결과: **{len(candidates)}**종목 (필터 미적용)")
         else:
             candidates = apply_range_filters(view, fin_filters)
@@ -207,68 +222,39 @@ if run or search_mode or "last_result" in st.session_state:
     if filtered.empty:
         st.info("조건에 맞는 종목이 없습니다.")
     else:
-        show_cols = [c for c in LIST_COLUMNS if c in filtered.columns]
-        display = format_display_df(filtered[show_cols])
-        rename = {k: SORT_LABELS.get(k, k) for k in display.columns}
-        display = display.rename(columns=rename)
+        # 헤더
+        metric_cols = [c for c in LIST_COLUMNS if c not in ("corp_name", "stock_code") and c in filtered.columns]
+        # 종목+버튼 | 코드 | metrics...
+        widths = [2.2] + [1.0] * min(len(metric_cols), 8)
+        header = st.columns(widths)
+        header[0].markdown("**종목**")
+        for i, col in enumerate(metric_cols[:8]):
+            header[i + 1].markdown(f"**{SORT_LABELS.get(col, col)}**")
 
-        st.caption("행 **왼쪽 체크/선택** 후 상세가 열립니다. (글자만 클릭하면 안 열릴 수 있음)")
+        st.divider()
 
-        event = st.dataframe(
-            display,
-            use_container_width=True,
-            hide_index=True,
-            height=520,
-            on_select="rerun",
-            selection_mode="single-row",
-            key="result_table",
-        )
+        # 행 + 상세보기 버튼 (체크/자동 모달 없음)
+        for _, r in filtered.head(200).iterrows():
+            code = str(r["stock_code"]).zfill(6)
+            cols = st.columns(widths)
+            with cols[0]:
+                b1, b2 = st.columns([2.2, 1.0])
+                b1.write(f"**{r['corp_name']}**")
+                if b2.button("상세", key=f"detail_btn_{code}", use_container_width=True):
+                    st.session_state["open_detail_code"] = code
+            for i, col in enumerate(metric_cols[:8]):
+                cols[i + 1].write(format_cell(r, col))
 
-        selected_idx = None
-        # Streamlit 버전별 selection 접근
-        try:
-            rows = event.selection.rows
-            if rows:
-                selected_idx = int(rows[0])
-        except Exception:
-            pass
-        if selected_idx is None:
-            try:
-                rows = event.selection.get("rows", [])  # type: ignore[attr-defined]
-                if rows:
-                    selected_idx = int(rows[0])
-            except Exception:
-                pass
-        if selected_idx is None and "result_table" in st.session_state:
-            try:
-                sel = st.session_state["result_table"].get("selection", {})
-                rows = sel.get("rows", [])
-                if rows:
-                    selected_idx = int(rows[0])
-            except Exception:
-                pass
+        if len(filtered) > 200:
+            st.caption(f"상위 200개만 표시 (전체 {len(filtered)})")
 
-        options = [
-            f"{r.corp_name} ({str(r.stock_code).zfill(6)}) · "
-            f"{int(r.attractiveness) if pd.notna(getattr(r, 'attractiveness', None)) else '-'}점"
-            for _, r in filtered.iterrows()
-        ]
+        # 명시적으로 버튼 눌렀을 때만 모달
+        open_code = st.session_state.pop("open_detail_code", None)
+        if open_code:
+            hit = filtered[filtered["stock_code"].astype(str).str.zfill(6) == open_code]
+            if not hit.empty:
+                open_detail_for_row(hit.iloc[0])
 
-        pick = st.selectbox("상세 볼 종목", ["— 선택 —"] + options, key="detail_pick")
-        col_a, col_b = st.columns([1, 3])
-        with col_a:
-            open_btn = st.button("상세 보기", type="primary")
-
-        open_i = None
-        if selected_idx is not None and selected_idx < len(filtered):
-            open_i = selected_idx
-        elif pick != "— 선택 —" and open_btn:
-            open_i = options.index(pick)
-
-        if open_i is not None:
-            open_detail_for_row(filtered.iloc[open_i])
-            if selected_idx is not None:
-                st.caption(f"선택 행 #{selected_idx + 1} 상세 표시")
         st.download_button(
             "CSV 다운로드",
             filtered.drop(columns=[c for c in filtered.columns if c.startswith("_")], errors="ignore")
