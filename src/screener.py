@@ -8,7 +8,9 @@ from criteria import (
     ABS_SPECS,
     FILTER_SPECS,
     LIST_COLUMNS,
+    MARGIN_BADGE_THRESHOLDS,
     PRICE_FILTER_KEYS,
+    REVENUE_GROWTH_KEY,
     SPEC_BY_KEY,
     categories_order,
     score_row,
@@ -257,6 +259,11 @@ def render_abs_filters(filters: dict) -> None:
 
 
 def _excellent_hint(spec) -> str:
+    if spec.key == REVENUE_GROWTH_KEY:
+        return "0%↑양호 · 40%↑우수 · 80%↑매우우수"
+    if spec.key in MARGIN_BADGE_THRESHOLDS:
+        good, excellent, _very = MARGIN_BADGE_THRESHOLDS[spec.key]
+        return f"{good:g}%↑양호 · {excellent:g}%↑우수"
     if spec.direction == "min":
         v = spec.excellent_min
         if spec.key == "cash_flow_match":
