@@ -119,6 +119,8 @@ def detail_dialog(row_dict: dict) -> None:
 
 def _render_metric_tiles(items: list[tuple[str, str, str]]) -> None:
     """5열 타일. 복잡한 HTML 카드 대신 columns + 짧은 마크다운."""
+    from html import escape
+
     cols_per_row = 5
     for i in range(0, len(items), cols_per_row):
         chunk = items[i : i + cols_per_row]
@@ -128,8 +130,8 @@ def _render_metric_tiles(items: list[tuple[str, str, str]]) -> None:
                 st.markdown(
                     f"<div style='border:1px solid #2a3348;border-radius:10px;"
                     f"padding:0.65rem 0.7rem;background:#151b2b;min-height:92px;'>"
-                    f"<div style='color:#8b95a8;font-size:0.75rem;margin-bottom:0.25rem;'>{lab}</div>"
-                    f"<div style='color:#f2f5fa;font-size:1.05rem;font-weight:700;margin-bottom:0.25rem;'>{val}</div>"
+                    f"<div style='color:#8b95a8;font-size:0.75rem;margin-bottom:0.25rem;'>{escape(lab)}</div>"
+                    f"<div style='color:#f2f5fa;font-size:1.05rem;font-weight:700;margin-bottom:0.25rem;'>{escape(str(val))}</div>"
                     f"<div style='font-size:0.78rem;'>{status_html(badge)}</div>"
                     f"</div>",
                     unsafe_allow_html=True,
