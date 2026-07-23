@@ -39,6 +39,34 @@ div[data-testid="stDialog"] .stCaption,
 div[data-testid="stDialog"] [data-testid="stMarkdownContainer"] p {
   color: #b0b6c0 !important;
 }
+.ks-cat-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1rem 0 0.45rem 0;
+}
+.ks-cat-title {
+  flex: 0 0 auto;
+  color: #e8eaed;
+  font-size: 1.08rem;
+  font-weight: 700;
+  border-left: 3px solid #7d8590;
+  padding-left: 0.55rem;
+  white-space: nowrap;
+}
+.ks-cat-line {
+  flex: 1 1 auto;
+  height: 1px;
+  background: #5a6578;
+  min-width: 1.5rem;
+}
+.ks-cat-score {
+  flex: 0 0 auto;
+  color: #c5cddc;
+  font-size: 0.95rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
 </style>
 """
 
@@ -86,6 +114,26 @@ def _grade_pill(grade: str) -> str:
 def _status_pill(badge: str) -> str:
     label, bg, fg = _STATUS_STYLE.get(badge, (badge or "—", "transparent", "#6b7385"))
     return _pill(label, bg, fg)
+
+
+def _category_header(title: str, score: int | None, *, show_score: bool = True) -> str:
+    if show_score:
+        score_html = f"{int(score)}점" if score is not None else "—"
+    else:
+        score_html = ""
+    # Streamlit이 class CSS를 가끔 무시해서 핵심 레이아웃은 인라인으로 고정
+    return (
+        f"<div class='ks-cat-head' style='display:flex;align-items:center;gap:0.75rem;"
+        f"margin:1rem 0 0.45rem 0;'>"
+        f"<div class='ks-cat-title' style='flex:0 0 auto;color:#e8eaed;font-size:1.08rem;"
+        f"font-weight:700;border-left:3px solid #7d8590;padding-left:0.55rem;"
+        f"white-space:nowrap;'>{escape(title)}</div>"
+        f"<div class='ks-cat-line' style='flex:1 1 auto;height:1px;background:#5a6578;"
+        f"min-width:1.5rem;'></div>"
+        f"<div class='ks-cat-score' style='flex:0 0 auto;color:#c5cddc;font-size:0.95rem;"
+        f"font-weight:700;white-space:nowrap;'>{escape(score_html)}</div>"
+        f"</div>"
+    )
 
 
 @st.dialog("종목 상세", width="large")
@@ -143,10 +191,11 @@ def detail_dialog(stock_code: str) -> None:
     )
 
     for title, cat_key in DETAIL_SECTION_ORDER:
-        if cat_key and cat_scores.get(cat_key) is not None:
-            st.markdown(f"#### {title} · {int(cat_scores[cat_key])}점")
-        else:
-            st.markdown(f"#### {title}")
+        cat_score = cat_scores.get(cat_key) if cat_key else None
+        st.markdown(
+            _category_header(title, cat_score, show_score=cat_key is not None),
+            unsafe_allow_html=True,
+        )
         if cat_key is None:
             tiles = []
             for key, label in [
