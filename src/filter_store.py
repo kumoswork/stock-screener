@@ -189,12 +189,36 @@ def restore_filters_to_session(filter_keys: list[str], abs_keys: list[str]) -> N
         st.session_state[f"abs_{key}_hi"] = float(conf.get("hi") or 0.0)
 
 
+def _migrate_saved_filters(saved: dict[str, Any]) -> dict[str, Any]:
+    """구 키(pct_from_low) → 신 키(pct_from_avg_52w) 호환."""
+    if not saved:
+        return saved
+    out = dict(saved)
+    enabled = list(out.get("enabled") or [])
+    ranges = dict(out.get("ranges") or {})
+    if "pct_from_low" in enabled or "pct_from_low" in ranges:
+        enabled = [
+            ("pct_from_avg_52w" if k == "pct_from_low" else k) for k in enabled
+        ]
+        if "pct_from_low" in ranges and "pct_from_avg_52w" not in ranges:
+            ranges["pct_from_avg_52w"] = ranges.pop("pct_from_low")
+        else:
+            ranges.pop("pct_from_low", None)
+        # 중복 제거 (순서 유지)
+        seen = set()
+        enabled = [k for k in enabled if not (k in seen or seen.add(k))]
+        out["enabled"] = enabled
+        out["ranges"] = ranges
+    return out
+
+
 def seed_session_from_saved(saved: dict[str, Any]) -> None:
     import streamlit as st
 
     if st.session_state.get("_filters_seeded"):
         return
 
+    saved = _migrate_saved_filters(saved)
     if not saved:
         st.session_state["_filters_seeded"] = True
         return
