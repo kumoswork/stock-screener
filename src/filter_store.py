@@ -137,6 +137,58 @@ def collect_filter_state(market_label: str, filter_keys: list[str], abs_keys: li
     }
 
 
+def backup_filters_from_session(filter_keys: list[str], abs_keys: list[str]) -> dict[str, Any]:
+    """위젯이 사라지기 전에 필터를 비위젯 키로 백업 (모드 전환 대비)."""
+    import streamlit as st
+
+    market = st.session_state.get("market_radio", "전체")
+    # 필터 위젯 키가 하나도 없으면 기존 백업 유지
+    has_filter_widgets = any(f"f_{k}" in st.session_state for k in filter_keys) or any(
+        f"abs_{k}" in st.session_state for k in abs_keys
+    )
+    if not has_filter_widgets:
+        return st.session_state.get("_filter_backup") or {}
+
+    state = collect_filter_state(str(market), filter_keys, abs_keys)
+    st.session_state["_filter_backup"] = state
+    return state
+
+
+def restore_filters_to_session(filter_keys: list[str], abs_keys: list[str]) -> None:
+    """필터 위젯 렌더 직전에 백업(또는 저장본)을 세션에 되돌림."""
+    import streamlit as st
+
+    saved = st.session_state.get("_filter_backup")
+    if not saved:
+        return
+
+    if "market" in saved:
+        st.session_state["market_radio"] = saved["market"]
+
+    enabled = set(saved.get("enabled") or [])
+    ranges = saved.get("ranges") or {}
+    for key in filter_keys:
+        on = key in enabled
+        st.session_state[f"f_{key}"] = on
+        if on:
+            st.session_state[f"_defaulted_{key}"] = True
+            lo, hi = ranges.get(key, [None, None])
+            if lo is not None:
+                st.session_state[f"f_{key}_min"] = float(lo)
+            if hi is not None:
+                st.session_state[f"f_{key}_max"] = float(hi)
+        else:
+            st.session_state.pop(f"_defaulted_{key}", None)
+
+    for key, conf in (saved.get("abs") or {}).items():
+        if key not in abs_keys:
+            continue
+        st.session_state[f"abs_{key}"] = bool(conf.get("on"))
+        st.session_state[f"abs_{key}_unit"] = conf.get("unit", "억원")
+        st.session_state[f"abs_{key}_lo"] = float(conf.get("lo") or 0.0)
+        st.session_state[f"abs_{key}_hi"] = float(conf.get("hi") or 0.0)
+
+
 def seed_session_from_saved(saved: dict[str, Any]) -> None:
     import streamlit as st
 
@@ -147,10 +199,16 @@ def seed_session_from_saved(saved: dict[str, Any]) -> None:
         st.session_state["_filters_seeded"] = True
         return
 
+    # 모드 전환용 백업에도 넣어 둠
+    st.session_state["_filter_backup"] = saved
+
     if "market" in saved and "market_radio" not in st.session_state:
         st.session_state["market_radio"] = saved["market"]
     if "search" in saved and "stock_search_select" not in st.session_state:
-        st.session_state["stock_search_select"] = saved.get("search") or "— 검색 안 함 —"
+        search = saved.get("search") or "종목을 선택하세요"
+        if search in ("— 검색 안 함 —", ""):
+            search = "종목을 선택하세요"
+        st.session_state["stock_search_select"] = search
 
     for key in saved.get("enabled", []):
         st.session_state[f"f_{key}"] = True

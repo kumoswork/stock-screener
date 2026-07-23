@@ -14,9 +14,11 @@ sys.path.insert(0, str(SRC_DIR))
 
 from detail import open_detail_for_row  # noqa: E402
 from filter_store import (  # noqa: E402
+    backup_filters_from_session,
     collect_filter_state,
     load_saved_filters,
     persist_filters,
+    restore_filters_to_session,
     seed_session_from_saved,
 )
 from price import fetch_price_metrics  # noqa: E402
@@ -225,6 +227,10 @@ def fetch_prices_for_codes(
 
 
 def _on_ui_mode_change() -> None:
+    # 필터 위젯이 사라지기 전에 백업 (Streamlit이 미렌더 위젯 키를 삭제함)
+    backup_filters_from_session(FILTER_KEYS, ABS_KEYS)
+    if st.session_state.get("ui_mode") == "필터 검색":
+        st.session_state["_need_filter_restore"] = True
     st.session_state.pop("last_result", None)
     st.session_state.pop("last_candidate_count", None)
     st.session_state.pop("open_detail_code", None)
@@ -271,6 +277,9 @@ with st.sidebar:
             run = True
         market = "ALL"
     else:
+        # 종목검색 → 필터검색 복귀 시에만 위젯 키 복원 (매 렌더 복원 시 입력 덮어씀)
+        if st.session_state.pop("_need_filter_restore", False):
+            restore_filters_to_session(FILTER_KEYS, ABS_KEYS)
         market_label = st.radio(
             "시장",
             ["전체", "코스피", "코스닥"],
@@ -282,6 +291,8 @@ with st.sidebar:
         st.divider()
         render_abs_filters(filters)
         render_sidebar_filters(filters)
+        # 현재 필터를 세션 백업에 유지
+        backup_filters_from_session(FILTER_KEYS, ABS_KEYS)
         st.markdown('<div id="ks-filter-actions"></div>', unsafe_allow_html=True)
         c_save, c_run = st.columns(2)
         with c_save:
@@ -291,6 +302,7 @@ with st.sidebar:
 
         if save_clicked or run:
             state = collect_filter_state(market_label, FILTER_KEYS, ABS_KEYS)
+            st.session_state["_filter_backup"] = state
             where = persist_filters(state)
             if save_clicked:
                 st.toast(f"필터 저장됨 ({where})")
