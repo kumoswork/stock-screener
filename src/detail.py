@@ -67,6 +67,83 @@ div[data-testid="stDialog"] [data-testid="stMarkdownContainer"] p {
   font-weight: 700;
   white-space: nowrap;
 }
+.ks-cat-chips {
+  display: flex;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #2a3348;
+  row-gap: 0.65rem;
+}
+.ks-cat-chip {
+  min-width: 4.6rem;
+}
+.ks-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-bottom: 0.25rem;
+}
+.ks-detail-tile {
+  background: #121826;
+  border: 1px solid #2a3348;
+  border-radius: 12px;
+  padding: 0.75rem 0.6rem;
+  min-height: 104px;
+  box-sizing: border-box;
+}
+.ks-detail-tile .lab {
+  font-size: 0.86rem;
+  margin-bottom: 0.3rem;
+  color: #8b95a8;
+  font-weight: 600;
+}
+.ks-detail-tile .val {
+  font-size: 1.18rem;
+  font-weight: 800;
+  margin-bottom: 0.4rem;
+  line-height: 1.25;
+  color: #f2f5fa;
+  word-break: break-word;
+}
+@media (max-width: 768px) {
+  .ks-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+  .ks-detail-tile {
+    padding: 0.65rem 0.5rem;
+    min-height: 92px;
+  }
+  .ks-detail-tile .lab { font-size: 0.78rem; }
+  .ks-detail-tile .val { font-size: 1.05rem; }
+  .ks-cat-chips {
+    gap: 0.55rem 0.7rem;
+    row-gap: 0.55rem;
+    margin-top: 0.7rem;
+    padding-top: 0.65rem;
+  }
+  .ks-cat-chip {
+    min-width: 4.1rem;
+    flex: 1 1 calc(33.33% - 0.7rem);
+  }
+  .ks-cat-head {
+    gap: 0.45rem;
+    flex-wrap: wrap;
+  }
+  div[data-testid="stDialog"] > div,
+  section[data-testid="stDialog"] > div,
+  div[role="dialog"] {
+    padding-left: 0.55rem !important;
+    padding-right: 0.55rem !important;
+  }
+  div[data-testid="stDialog"] [data-testid="stMarkdownContainer"],
+  section[data-testid="stDialog"] [data-testid="stMarkdownContainer"] {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+}
 </style>
 """
 
@@ -164,14 +241,14 @@ def detail_dialog(stock_code: str) -> None:
         val = f"{int(cs)}" if cs is not None else "—"
         pct = int(round(CATEGORY_WEIGHTS.get(cat_key, 0) * 100))
         cat_chips.append(
-            f"<div style='min-width:4.6rem;'>"
+            f"<div class='ks-cat-chip' style='min-width:4.6rem;'>"
             f"<div style='color:#8b95a8;font-size:0.72rem;'>{escape(label)} · {pct}%</div>"
             f"<div style='color:#e8eaed;font-size:1.05rem;font-weight:700;'>{val}</div>"
             f"</div>"
         )
     cat_row = (
-        "<div style='display:flex;gap:0.85rem;flex-wrap:wrap;margin-top:0.85rem;"
-        "padding-top:0.75rem;border-top:1px solid #2a3348;'>"
+        "<div class='ks-cat-chips' style='display:flex;gap:0.85rem;flex-wrap:wrap;"
+        "margin-top:0.85rem;padding-top:0.75rem;border-top:1px solid #2a3348;'>"
         + "".join(cat_chips)
         + "</div>"
     )
@@ -296,24 +373,20 @@ def _load_detail_row(stock_code: str) -> pd.Series | None:
 
 
 def _render_metric_tiles(items: list[tuple[str, str, str]]) -> None:
-    """기존 다크 카드 스타일, 한 줄 6개."""
-    cols_per_row = 6
-    for i in range(0, len(items), cols_per_row):
-        chunk = items[i : i + cols_per_row]
-        cols = st.columns(cols_per_row)
-        for col, (lab, val, badge) in zip(cols, chunk):
-            with col:
-                st.markdown(
-                    f"<div style='background:#121826;border:1px solid #2a3348;border-radius:12px;"
-                    f"padding:0.75rem 0.6rem;min-height:104px;'>"
-                    f"<div style='font-size:0.86rem;margin-bottom:0.3rem;color:#8b95a8;font-weight:600;'>"
-                    f"{escape(lab)}</div>"
-                    f"<div style='font-size:1.18rem;font-weight:800;margin-bottom:0.4rem;"
-                    f"line-height:1.25;color:#f2f5fa;'>{escape(str(val))}</div>"
-                    f"<div>{_status_pill(badge)}</div>"
-                    f"</div>",
-                    unsafe_allow_html=True,
-                )
+    """다크 카드 타일 — 데스크톱 6열, 모바일 2열(CSS)."""
+    cards = []
+    for lab, val, badge in items:
+        cards.append(
+            f"<div class='ks-detail-tile'>"
+            f"<div class='lab'>{escape(lab)}</div>"
+            f"<div class='val'>{escape(str(val))}</div>"
+            f"<div>{_status_pill(badge)}</div>"
+            f"</div>"
+        )
+    st.markdown(
+        f"<div class='ks-detail-grid'>{''.join(cards)}</div>",
+        unsafe_allow_html=True,
+    )
 
 
 def open_detail_for_row(row: pd.Series) -> None:

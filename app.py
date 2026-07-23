@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import sys
 from datetime import date
+from html import escape
 from pathlib import Path
 
 import pandas as pd
@@ -120,6 +121,51 @@ st.markdown(
     section[data-testid="stSidebar"]:has(#ks-filter-actions)
       [data-testid="stSidebarUserContent"] {
         padding-bottom: 5.5rem !important;
+    }
+    /* 모바일: 사이드바 폭·하단 버튼·로고·본문 패딩 */
+    @media (max-width: 768px) {
+      section[data-testid="stSidebar"][aria-expanded="true"] {
+        min-width: 0 !important;
+        max-width: 100% !important;
+        width: 100% !important;
+      }
+      section[data-testid="stSidebar"][aria-expanded="true"]
+        div[data-testid="stHorizontalBlock"]:has(button[kind="secondary"]):has(button[kind="primary"]),
+      section[data-testid="stSidebar"][aria-expanded="true"]
+        div[data-testid="element-container"]:has(#ks-filter-actions)
+        + div[data-testid="element-container"],
+      section[data-testid="stSidebar"][aria-expanded="true"]
+        div[data-testid="stElementContainer"]:has(#ks-filter-actions)
+        + div[data-testid="stElementContainer"] {
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+      #ks-sidebar-logo {
+        margin-top: -8px !important;
+      }
+      #ks-sidebar-logo img {
+        width: min(200px, 70vw) !important;
+      }
+      div[data-testid="stAppViewContainer"] .main .block-container {
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+        padding-top: 1rem !important;
+      }
+    }
+    /* 결과 목록: 데스크톱 다열 / 모바일 카드 show·hide */
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] #ks-mobile-results),
+    div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] #ks-mobile-results) {
+      display: none !important;
+    }
+    @media (max-width: 768px) {
+      div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] #ks-desktop-results),
+      div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] #ks-desktop-results) {
+        display: none !important;
+      }
+      div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] #ks-mobile-results),
+      div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] #ks-mobile-results) {
+        display: block !important;
+      }
     }
     </style>
     """,
@@ -260,7 +306,7 @@ with st.sidebar:
         _logo_b64 = base64.b64encode(_LOGO_PATH.read_bytes()).decode("ascii")
         st.markdown(
             f'<div id="ks-sidebar-logo" style="display:flex;justify-content:center;'
-            f'align-items:center;margin:-40px 0 0.55rem 0;">'
+            f'align-items:center;margin-bottom:0.55rem;">'
             f'<img src="data:image/png;base64,{_logo_b64}" alt="KUMO$" '
             f'width="200" style="width:200px;height:auto;border-radius:4px;" />'
             f"</div>",
@@ -401,45 +447,94 @@ if should_query or "last_result" in st.session_state:
         if display_cols and display_cols[0] == "corp_name":
             widths[0] = 2.35
 
-        header = st.columns(widths)
-        for i, col in enumerate(display_cols):
-            header[i].markdown(f"**{SORT_LABELS.get(col, col)}**")
-
-        st.markdown(
-            "<hr style='margin:0.3rem 0 0.45rem 0; border:none; border-top:1px solid #c8c8c8;'>",
-            unsafe_allow_html=True,
-        )
-
-        for _, r in show.iterrows():
-            code = str(r["stock_code"]).zfill(6)
-            row_cols = st.columns(widths)
-            for i, col in enumerate(display_cols):
-                if col == "corp_name":
-                    with row_cols[i]:
-                        n1, n2 = st.columns([3.0, 1.05])
-                        n1.markdown(f"**{r['corp_name']}**")
-                        if n2.button("상세", type="primary", key=f"detail_btn_{code}"):
-                            st.session_state["open_detail_code"] = code
-                elif col == "stock_code":
-                    row_cols[i].write(code)
-                elif col == "market":
-                    m = r.get("market", "")
-                    label = {"KOSPI": "코스피", "KOSDAQ": "코스닥"}.get(
-                        str(m), str(m) if pd.notna(m) else "-"
-                    )
-                    row_cols[i].write(label)
-                elif col == "grade":
-                    row_cols[i].markdown(
-                        grade_badge_html(str(r.get("grade", ""))),
-                        unsafe_allow_html=True,
-                    )
-                else:
-                    row_cols[i].write(format_cell(r, col))
-
+        # ---------- 데스크톱 다열 리스트 ----------
+        with st.container():
             st.markdown(
-                "<hr style='margin:0.15rem 0; border:none; border-top:1px solid #e6e6e6;'>",
+                '<div class="ks-desktop-list-root"></div>',
                 unsafe_allow_html=True,
             )
+            header = st.columns(widths)
+            for i, col in enumerate(display_cols):
+                header[i].markdown(f"**{SORT_LABELS.get(col, col)}**")
+
+            st.markdown(
+                "<hr style='margin:0.3rem 0 0.45rem 0; border:none; border-top:1px solid #c8c8c8;'>",
+                unsafe_allow_html=True,
+            )
+
+            for _, r in show.iterrows():
+                code = str(r["stock_code"]).zfill(6)
+                row_cols = st.columns(widths)
+                for i, col in enumerate(display_cols):
+                    if col == "corp_name":
+                        with row_cols[i]:
+                            n1, n2 = st.columns([3.0, 1.05])
+                            n1.markdown(f"**{r['corp_name']}**")
+                            if n2.button("상세", type="primary", key=f"detail_btn_{code}"):
+                                st.session_state["open_detail_code"] = code
+                    elif col == "stock_code":
+                        row_cols[i].write(code)
+                    elif col == "market":
+                        m = r.get("market", "")
+                        label = {"KOSPI": "코스피", "KOSDAQ": "코스닥"}.get(
+                            str(m), str(m) if pd.notna(m) else "-"
+                        )
+                        row_cols[i].write(label)
+                    elif col == "grade":
+                        row_cols[i].markdown(
+                            grade_badge_html(str(r.get("grade", ""))),
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        row_cols[i].write(format_cell(r, col))
+
+                st.markdown(
+                    "<hr style='margin:0.15rem 0; border:none; border-top:1px solid #e6e6e6;'>",
+                    unsafe_allow_html=True,
+                )
+
+        # ---------- 모바일 카드 목록 ----------
+        with st.container():
+            st.markdown(
+                '<div class="ks-mobile-list-root"></div>',
+                unsafe_allow_html=True,
+            )
+            for _, r in show.iterrows():
+                code = str(r["stock_code"]).zfill(6)
+                m = r.get("market", "")
+                market_label = {"KOSPI": "코스피", "KOSDAQ": "코스닥"}.get(
+                    str(m), str(m) if pd.notna(m) else "-"
+                )
+                score = r.get("attractiveness", "")
+                score_txt = (
+                    f"{int(score)}점"
+                    if pd.notna(score) and str(score) != ""
+                    else "—"
+                )
+                grade_html = grade_badge_html(str(r.get("grade", "")))
+                price_txt = escape(format_cell(r, "current_price"))
+                op_txt = escape(format_cell(r, "operating_margin"))
+                rev_txt = escape(format_cell(r, "revenue_growth"))
+
+                n1, n2 = st.columns([4.2, 1.0])
+                n1.markdown(f"**{r['corp_name']}**")
+                if n2.button("상세", type="primary", key=f"detail_btn_m_{code}"):
+                    st.session_state["open_detail_code"] = code
+
+                st.markdown(
+                    f'<div class="ks-mcard">'
+                    f'<div class="ks-mcard-meta">{escape(code)} · {escape(market_label)} · '
+                    f"{escape(score_txt)} {grade_html}</div>"
+                    f'<div class="ks-mcard-metrics">'
+                    f'<span><span class="lab">현재가</span>'
+                    f'<span class="val">{price_txt}</span></span>'
+                    f'<span><span class="lab">영업이익률</span>'
+                    f'<span class="val">{op_txt}</span></span>'
+                    f'<span><span class="lab">매출성장</span>'
+                    f'<span class="val">{rev_txt}</span></span>'
+                    f"</div></div>",
+                    unsafe_allow_html=True,
+                )
 
         open_code = st.session_state.pop("open_detail_code", None)
         if open_code:

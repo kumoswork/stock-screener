@@ -56,6 +56,63 @@ LIST_DETAIL_CSS = """
   border-radius: 999px;
 }
 .ks-badge.muted { color: #6b7385; background: transparent; padding: 0; }
+
+/* 결과 목록: 데스크톱 / 모바일 show·hide */
+.ks-desktop-list-root,
+.ks-mobile-list-root { display: none !important; }
+
+/* 기본(데스크톱): 모바일 목록 컨테이너 숨김 */
+div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .ks-mobile-list-root),
+div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .ks-mobile-list-root) {
+  display: none !important;
+}
+
+.ks-mcard {
+  background: #f7f8fa;
+  border: 1px solid #e2e5ea;
+  border-radius: 10px;
+  padding: 0.7rem 0.85rem;
+  margin: 0 0 0.55rem 0;
+  box-sizing: border-box;
+}
+.ks-mcard-meta {
+  color: #5c6575;
+  font-size: 0.82rem;
+  margin-bottom: 0.35rem;
+  line-height: 1.35;
+}
+.ks-mcard-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+  color: #1a1f2a;
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+.ks-mcard-metrics span {
+  white-space: nowrap;
+}
+.ks-mcard-metrics .lab {
+  color: #8b95a8;
+  font-weight: 500;
+  margin-right: 0.2rem;
+}
+.ks-mcard-metrics .val {
+  font-weight: 700;
+  color: #1a1f2a;
+}
+
+@media (max-width: 768px) {
+  /* 모바일: 데스크톱 목록 숨김, 카드 목록 표시 */
+  div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .ks-desktop-list-root),
+  div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .ks-desktop-list-root) {
+    display: none !important;
+  }
+  div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .ks-mobile-list-root),
+  div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .ks-mobile-list-root) {
+    display: block !important;
+  }
+}
 </style>
 """
 
