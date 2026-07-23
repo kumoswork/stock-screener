@@ -71,8 +71,8 @@ div[data-testid="stDialog"] [data-testid="stMarkdownContainer"] p {
 """
 
 DETAIL_SECTION_ORDER: list[tuple[str, str | None]] = [
-    ("주가 현위치", "주가 현위치"),
     ("손익 요약", None),
+    ("주가 현위치", "주가 현위치"),
     ("B경제", "B경제"),
     ("안전성", "안전성 check!"),
     ("수익/성장성", "수익/성장성 check!"),
