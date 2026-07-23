@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 SRC_DIR = Path(__file__).resolve().parent / "src"
 sys.path.insert(0, str(SRC_DIR))
@@ -255,7 +256,7 @@ try:
     )
 except Exception:
     _csv_sig = "na"
-_data_version = f"{_meta}|{_csv_sig}|ni-fix-3"
+_data_version = f"{_meta}|{_csv_sig}|avg52w-1"
 
 # 스냅샷이 바뀌면 예전 검색결과(당기순이익 0 등) 폐기
 if st.session_state.get("_data_version") != _data_version:
@@ -508,51 +509,142 @@ if should_query or "last_result" in st.session_state:
         def _cell(text: str, col: str) -> str:
             return f'<p class="ks-td ks-align-{_align(col)}">{text}</p>'
 
-        header = st.columns(widths, vertical_alignment="center")
-        for i, col in enumerate(display_cols):
-            header[i].markdown(_head(col), unsafe_allow_html=True)
+        def _market_label(row) -> str:
+            m = row.get("market", "")
+            return {"KOSPI": "코스피", "KOSDAQ": "코스닥"}.get(
+                str(m), str(m) if pd.notna(m) else "-"
+            )
 
-        st.markdown(
-            "<hr style='margin:0.3rem 0 0.45rem 0; border:none; border-top:1px solid #c8c8c8;'>",
-            unsafe_allow_html=True,
-        )
-
-        for _, r in show.iterrows():
-            code = str(r["stock_code"]).zfill(6)
-            row_cols = st.columns(widths, vertical_alignment="center")
-            for i, col in enumerate(display_cols):
-                if col == "corp_name":
-                    with row_cols[i]:
-                        n1, n2 = st.columns([3.0, 1.05], vertical_alignment="center")
-                        n1.markdown(
-                            _cell(f"<b>{escape(str(r['corp_name']))}</b>", col),
-                            unsafe_allow_html=True,
-                        )
-                        if n2.button("상세", type="primary", key=f"detail_btn_{code}"):
-                            st.session_state["open_detail_code"] = code
-                elif col == "stock_code":
-                    row_cols[i].markdown(_cell(code, col), unsafe_allow_html=True)
-                elif col == "market":
-                    m = r.get("market", "")
-                    label = {"KOSPI": "코스피", "KOSDAQ": "코스닥"}.get(
-                        str(m), str(m) if pd.notna(m) else "-"
-                    )
-                    row_cols[i].markdown(_cell(label, col), unsafe_allow_html=True)
-                elif col == "grade":
-                    row_cols[i].markdown(
-                        f'<div class="ks-align-center">{grade_badge_html(str(r.get("grade", "")))}</div>',
-                        unsafe_allow_html=True,
-                    )
-                else:
-                    row_cols[i].markdown(
-                        _cell(escape(str(format_cell(r, col))), col),
-                        unsafe_allow_html=True,
-                    )
-
+        # ---------- 데스크톱: 다열 리스트 ----------
+        with st.container():
             st.markdown(
-                "<hr style='margin:0.15rem 0; border:none; border-top:1px solid #e6e6e6;'>",
+                '<div class="ks-desktop-list-root" aria-hidden="true"></div>',
                 unsafe_allow_html=True,
             )
+            header = st.columns(widths, vertical_alignment="center")
+            for i, col in enumerate(display_cols):
+                header[i].markdown(_head(col), unsafe_allow_html=True)
+
+            st.markdown(
+                "<hr style='margin:0.3rem 0 0.45rem 0; border:none; border-top:1px solid #c8c8c8;'>",
+                unsafe_allow_html=True,
+            )
+
+            for _, r in show.iterrows():
+                code = str(r["stock_code"]).zfill(6)
+                row_cols = st.columns(widths, vertical_alignment="center")
+                for i, col in enumerate(display_cols):
+                    if col == "corp_name":
+                        with row_cols[i]:
+                            n1, n2 = st.columns([3.0, 1.05], vertical_alignment="center")
+                            n1.markdown(
+                                _cell(f"<b>{escape(str(r['corp_name']))}</b>", col),
+                                unsafe_allow_html=True,
+                            )
+                            if n2.button("상세", type="primary", key=f"detail_btn_{code}"):
+                                st.session_state["open_detail_code"] = code
+                    elif col == "stock_code":
+                        row_cols[i].markdown(_cell(code, col), unsafe_allow_html=True)
+                    elif col == "market":
+                        row_cols[i].markdown(
+                            _cell(_market_label(r), col), unsafe_allow_html=True
+                        )
+                    elif col == "grade":
+                        row_cols[i].markdown(
+                            f'<div class="ks-align-center">{grade_badge_html(str(r.get("grade", "")))}</div>',
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        row_cols[i].markdown(
+                            _cell(escape(str(format_cell(r, col))), col),
+                            unsafe_allow_html=True,
+                        )
+
+                st.markdown(
+                    "<hr style='margin:0.15rem 0; border:none; border-top:1px solid #e6e6e6;'>",
+                    unsafe_allow_html=True,
+                )
+
+        # ---------- 모바일: 종목 카드 ----------
+        with st.container():
+            st.markdown(
+                '<div class="ks-mobile-list-root" aria-hidden="true"></div>',
+                unsafe_allow_html=True,
+            )
+            for _, r in show.iterrows():
+                code = str(r["stock_code"]).zfill(6)
+                market_label = _market_label(r)
+                score = r.get("attractiveness", "")
+                score_txt = (
+                    f"{int(score)}점"
+                    if pd.notna(score) and str(score) != ""
+                    else "—"
+                )
+                grade_html = grade_badge_html(str(r.get("grade", "")))
+                price_txt = escape(format_cell(r, "current_price"))
+                op_txt = escape(format_cell(r, "operating_margin"))
+                rev_txt = escape(format_cell(r, "revenue_growth"))
+                name = escape(str(r.get("corp_name", "") or ""))
+
+                with st.container(border=True):
+                    head_l, head_r = st.columns([4.2, 1.1], vertical_alignment="center")
+                    with head_l:
+                        st.markdown(
+                            f'<div class="ks-mcard">'
+                            f'<div class="ks-mcard-name">{name}</div>'
+                            f'<div class="ks-mcard-meta">{escape(code)} · {escape(market_label)} · '
+                            f"{escape(score_txt)} {grade_html}</div>"
+                            f'<div class="ks-mcard-metrics">'
+                            f'<div class="cell"><span class="lab">현재가</span>'
+                            f'<span class="val">{price_txt}</span></div>'
+                            f'<div class="cell"><span class="lab">영업이익률</span>'
+                            f'<span class="val">{op_txt}</span></div>'
+                            f'<div class="cell"><span class="lab">매출성장</span>'
+                            f'<span class="val">{rev_txt}</span></div>'
+                            f"</div></div>",
+                            unsafe_allow_html=True,
+                        )
+                    with head_r:
+                        if st.button(
+                            "상세",
+                            type="primary",
+                            key=f"detail_btn_m_{code}",
+                            use_container_width=True,
+                        ):
+                            st.session_state["open_detail_code"] = code
+
+        # PC/모바일 목록 전환 (컨테이너 :has 대신 JS로 확정)
+        components.html(
+            """
+<script>
+(function () {
+  const doc = window.parent.document;
+  const win = window.parent;
+  let timer = null;
+  function sync() {
+    const mobile = win.innerWidth <= 768;
+    doc.querySelectorAll('.ks-desktop-list-root').forEach(function (el) {
+      const block = el.closest('[data-testid="stVerticalBlock"]');
+      if (block) block.style.display = mobile ? 'none' : '';
+    });
+    doc.querySelectorAll('.ks-mobile-list-root').forEach(function (el) {
+      const block = el.closest('[data-testid="stVerticalBlock"]');
+      if (block) block.style.display = mobile ? '' : 'none';
+    });
+  }
+  function schedule() {
+    if (timer) win.clearTimeout(timer);
+    timer = win.setTimeout(sync, 50);
+  }
+  sync();
+  win.addEventListener('resize', schedule);
+  new win.MutationObserver(schedule).observe(doc.body, { childList: true, subtree: true });
+})();
+</script>
+            """,
+            height=0,
+            width=0,
+        )
 
         open_code = st.session_state.pop("open_detail_code", None)
         if open_code:
