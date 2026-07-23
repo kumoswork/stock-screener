@@ -65,23 +65,27 @@ st.markdown(
       margin-top: -40px !important;
       margin-bottom: 0.55rem !important;
     }
-    /* 사이드바 << >> : Material 아이콘 숨기고 노란 유니코드로 표시 */
+    /* 사이드바 토글: ◀ / ▶ (노랑) */
     [data-testid="stSidebarCollapseButton"] button,
+    button[data-testid="stExpandSidebarButton"],
     [data-testid="collapsedControl"] button,
-    [data-testid="stExpandSidebarButton"] button,
     [data-testid="stSidebarCollapsedControl"] button {
       background: transparent !important;
       border: none !important;
       box-shadow: none !important;
       position: relative !important;
-      min-width: 2rem !important;
-      min-height: 2rem !important;
+      min-width: 2.1rem !important;
+      min-height: 2.1rem !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
     }
     [data-testid="stSidebarCollapseButton"] [data-testid="stIconMaterial"],
+    button[data-testid="stExpandSidebarButton"] [data-testid="stIconMaterial"],
     [data-testid="collapsedControl"] [data-testid="stIconMaterial"],
-    [data-testid="stExpandSidebarButton"] [data-testid="stIconMaterial"],
     [data-testid="stSidebarCollapsedControl"] [data-testid="stIconMaterial"] {
       font-size: 0 !important;
+      line-height: 0 !important;
       width: 0 !important;
       height: 0 !important;
       overflow: hidden !important;
@@ -89,24 +93,29 @@ st.markdown(
       color: transparent !important;
     }
     [data-testid="stSidebarCollapseButton"] button::after {
-      content: "≪";
+      content: "◀";
       color: #ffd400 !important;
-      font-size: 1.55rem !important;
-      font-weight: 800 !important;
+      font-size: 1.25rem !important;
+      font-weight: 700 !important;
       line-height: 1 !important;
     }
+    button[data-testid="stExpandSidebarButton"]::after,
     [data-testid="collapsedControl"] button::after,
-    [data-testid="stExpandSidebarButton"] button::after,
     [data-testid="stSidebarCollapsedControl"] button::after {
-      content: "≫";
+      content: "▶";
       color: #ffd400 !important;
-      font-size: 1.55rem !important;
-      font-weight: 800 !important;
+      font-size: 1.25rem !important;
+      font-weight: 700 !important;
       line-height: 1 !important;
+    }
+    /* 닫힌 뒤 펼치기 버튼이 헤더에 가려지지 않게 */
+    button[data-testid="stExpandSidebarButton"] {
+      z-index: 1000002 !important;
+      position: relative !important;
     }
     section[data-testid="stSidebar"][aria-expanded="true"] {
-        min-width: 400px !important;
-        max-width: 400px !important;
+        min-width: 380px !important;
+        max-width: 380px !important;
     }
     div[data-testid="stAppViewContainer"] .main .block-container {
         max-width: 100% !important;
@@ -114,8 +123,8 @@ st.markdown(
         padding-right: 1.5rem;
     }
     section[data-testid="stSidebar"] div[data-testid="stHorizontalBlock"] {
-        flex-wrap: nowrap !important;
-        gap: 0.25rem !important;
+        flex-wrap: wrap !important;
+        gap: 0.2rem 0.35rem !important;
         align-items: center !important;
     }
     section[data-testid="stSidebar"] div[data-testid="column"] {
@@ -123,19 +132,20 @@ st.markdown(
     }
     section[data-testid="stSidebar"] div[data-testid="stNumberInput"] {
         min-width: 0 !important;
+        width: 100% !important;
     }
     section[data-testid="stSidebar"] div[data-testid="stNumberInput"] input {
-        padding-left: 0.35rem !important;
-        padding-right: 0.35rem !important;
+        padding-left: 0.4rem !important;
+        padding-right: 0.4rem !important;
     }
     section[data-testid="stSidebar"] .ks-unit-suffix {
         color: #b0b6c0 !important;
-        font-size: 0.78rem !important;
+        font-size: 0.8rem !important;
         white-space: nowrap !important;
         line-height: 1.2 !important;
-        margin: 0 !important;
+        margin: 0.35rem 0 0 0 !important;
     }
-    /* 리스트 상세 버튼: 조회와 같은 primary 하늘색 + 작게 */
+    /* 리스트 상세 버튼 */
     div[data-testid="stAppViewContainer"] .main div[data-testid="stButton"] > button[kind="primary"],
     div[data-testid="stAppViewContainer"] .main div[data-testid="stButton"] > button[data-testid="baseButton-primary"] {
         background: #4c8bf5 !important;
@@ -146,34 +156,13 @@ st.markdown(
         min-height: 1.55rem !important;
         line-height: 1.2 !important;
     }
-    /* 필터검색: 저장/스크리닝 — sticky로 사이드바 안에서만 고정 (잘림 방지) */
+    /* 필터 저장/스크리닝: 하단 고정 해제 → 사이드바 안에서 일반 배치 */
     #ks-filter-actions { display: none; }
-    section[data-testid="stSidebar"][aria-expanded="true"]
-      div[data-testid="stHorizontalBlock"]:has(button[kind="secondary"]):has(button[kind="primary"]),
-    section[data-testid="stSidebar"][aria-expanded="true"]
-      div[data-testid="element-container"]:has(#ks-filter-actions)
-      + div[data-testid="element-container"],
-    section[data-testid="stSidebar"][aria-expanded="true"]
-      div[data-testid="stElementContainer"]:has(#ks-filter-actions)
-      + div[data-testid="stElementContainer"] {
-        position: sticky !important;
-        bottom: 0 !important;
-        left: auto !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        z-index: 1000001 !important;
-        margin: 0 !important;
-        padding: 0.65rem 0.35rem 0.85rem 0.35rem !important;
-        background: #0e1117 !important;
-        border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
-        box-shadow: 0 -12px 28px rgba(0, 0, 0, 0.45) !important;
-        box-sizing: border-box !important;
-    }
     section[data-testid="stSidebar"]:has(#ks-filter-actions)
       [data-testid="stSidebarUserContent"] {
-        padding-bottom: 1rem !important;
+        padding-bottom: 0.75rem !important;
     }
-    /* 모바일: 사이드바 폭·로고·본문 패딩 */
+    /* 모바일 */
     @media (max-width: 768px) {
       section[data-testid="stSidebar"][aria-expanded="true"] {
         min-width: 0 !important;
