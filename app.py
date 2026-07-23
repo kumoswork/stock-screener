@@ -424,6 +424,6 @@ if should_query or "last_result" in st.session_state:
         )
 else:
     if search_mode:
-        st.info("왼쪽에서 종목을 선택한 뒤 **조회**를 누르세요.")
+        st.info("왼쪽에서 종목을 선택하세요. (엔터로 선택하면 바로 조회됩니다)")
     else:
         st.info("왼쪽에서 필터를 고른 뒤 **스크리닝**을 누르세요.")
