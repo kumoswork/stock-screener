@@ -66,17 +66,12 @@ LIST_COLUMNS = [
     "corp_name",
     "stock_code",
     "market",
-    "attractiveness",
-    "grade",
     "current_price",
-    "pct_from_low",
-    "range_position",
-    "current_ratio",
-    "debt_ratio",
-    "roe",
     "operating_margin",
     "revenue_growth",
     "revenue",
+    "attractiveness",
+    "grade",
 ]
 
 PRICE_FILTER_KEYS = {"pct_from_low", "bottom_dwell_ratio", "range_position"}

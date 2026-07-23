@@ -65,6 +65,16 @@ def financials_meta() -> str:
     return "재무 스냅샷 없음"
 
 
+def financials_basis_caption() -> str:
+    """UI용 짧은 기준 문구. 예: 기준: 2025년 재무제표"""
+    import re
+
+    meta = financials_meta()
+    m = re.search(r"year=(\d{4})", meta)
+    year = m.group(1) if m else "2025"
+    return f"기준: {year}년 재무제표"
+
+
 # backward-compatible aliases used by older scripts
 def snapshot_exists() -> bool:
     return financials_exists()

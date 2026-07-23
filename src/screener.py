@@ -30,12 +30,15 @@ SORT_LABELS = {
     "debt_ratio": "부채비율(%)",
     "roe": "ROE(%)",
     "roa": "ROA(%)",
-    "operating_margin": "영업이익률(%)",
-    "revenue_growth": "매출성장(%)",
+    "operating_margin": "영업이익률",
+    "revenue_growth": "매출성장률",
     "revenue": "매출액",
     "operating_profit": "영업이익",
     "net_income": "당기순이익",
 }
+
+# 결과 리스트 열 폭 (종목명+상세 포함)
+LIST_WIDTHS = [2.0, 0.85, 0.75, 1.0, 0.95, 0.95, 1.0, 0.75, 0.75]
 
 
 def all_filter_keys() -> list[str]:
