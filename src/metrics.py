@@ -25,7 +25,14 @@ ACCOUNT_ALIASES = {
     "total_assets": ["자산총계", "자산합계"],
     "current_liabilities": ["유동부채"],
     "total_liabilities": ["부채총계", "부채합계"],
-    "total_equity": ["자본총계", "자본합계", "자본총계(지배기업 소유주지분)"],
+    "total_equity": [
+        "자본총계",
+        "자본합계",
+        "지배기업의 소유주에게 귀속되는 자본",
+        "지배기업의소유주에게귀속되는자본",
+        "자본총계(지배기업 소유주지분)",
+        "지배기업소유주지분",
+    ],
     "advances": ["선수금", "선수수익", "예수금", "계약부채"],  # 행복한 부채
     "revenue": ["매출액", "영업수익", "수익(매출액)", "수익"],
     "cogs": ["매출원가", "영업원가", "매출원가 및 용역원가"],
@@ -140,6 +147,22 @@ def _resolve_net_income(accounts: dict[str, float | None]) -> float | None:
     return ni
 
 
+def _resolve_total_equity(accounts: dict[str, float | None]) -> float | None:
+    """자본총계가 잘못 들어온 경우(SK오션플랜트 등) 자산−부채로 보정."""
+    equity = accounts.get("total_equity")
+    assets = accounts.get("total_assets")
+    liab = accounts.get("total_liabilities")
+    if assets is not None and liab is not None:
+        implied = float(assets) - float(liab)
+        if implied != 0:
+            if equity is None or equity == 0:
+                return implied
+            # 계정 '자본총계'가 BS 항등식과 5% 이상 어긋나면 자산−부채 사용
+            if abs(float(equity) - implied) / abs(implied) > 0.05:
+                return implied
+    return equity
+
+
 def _extract_accounts(group: pd.DataFrame) -> dict[str, float | None]:
     return {key: _pick_amount(group, aliases) for key, aliases in ACCOUNT_ALIASES.items()}
 
@@ -180,6 +203,9 @@ def load_financial_metrics(bsns_year: str, prev_year: str | None = None) -> pd.D
 
         a = _extract_accounts(group)
         p = _extract_accounts(prev_group) if not prev_group.empty else {}
+        a["total_equity"] = _resolve_total_equity(a)
+        if p:
+            p["total_equity"] = _resolve_total_equity(p)
 
         gross_profit = a["gross_profit"]
         if gross_profit is None and a["revenue"] is not None and a["cogs"] is not None:
