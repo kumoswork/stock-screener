@@ -57,60 +57,54 @@ LIST_DETAIL_CSS = """
 }
 .ks-badge.muted { color: #6b7385; background: transparent; padding: 0; }
 
-/* 결과 목록: 데스크톱 / 모바일 show·hide */
-.ks-desktop-list-root,
-.ks-mobile-list-root { display: none !important; }
-
-/* 기본(데스크톱): 모바일 목록 컨테이너 숨김 */
-div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .ks-mobile-list-root),
-div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .ks-mobile-list-root) {
-  display: none !important;
-}
-
+/* 검색결과 카드 (모바일·데스크톱 공통) */
 .ks-mcard {
-  background: #f7f8fa;
-  border: 1px solid #e2e5ea;
-  border-radius: 10px;
-  padding: 0.7rem 0.85rem;
-  margin: 0 0 0.55rem 0;
-  box-sizing: border-box;
+  margin: 0 0 0.15rem 0;
+}
+.ks-mcard-name {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: inherit;
+  line-height: 1.25;
+  margin: 0 0 0.2rem 0;
 }
 .ks-mcard-meta {
-  color: #5c6575;
+  color: #8b95a8;
   font-size: 0.82rem;
-  margin-bottom: 0.35rem;
   line-height: 1.35;
+  margin: 0 0 0.55rem 0;
 }
 .ks-mcard-metrics {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.9rem;
-  color: #1a1f2a;
-  font-size: 0.86rem;
-  line-height: 1.35;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem 0.5rem;
 }
-.ks-mcard-metrics span {
-  white-space: nowrap;
+.ks-mcard-metrics .cell {
+  min-width: 0;
 }
 .ks-mcard-metrics .lab {
+  display: block;
   color: #8b95a8;
-  font-weight: 500;
-  margin-right: 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  margin-bottom: 0.12rem;
 }
 .ks-mcard-metrics .val {
-  font-weight: 700;
-  color: #1a1f2a;
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 750;
+  line-height: 1.2;
+  word-break: break-word;
 }
-
 @media (max-width: 768px) {
-  /* 모바일: 데스크톱 목록 숨김, 카드 목록 표시 */
-  div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .ks-desktop-list-root),
-  div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .ks-desktop-list-root) {
-    display: none !important;
-  }
-  div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] .ks-mobile-list-root),
-  div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] .ks-mobile-list-root) {
-    display: block !important;
+  .ks-mcard-name { font-size: 1.02rem; }
+  .ks-mcard-metrics .val { font-size: 0.9rem; }
+  /* 결과 카드 안 상세 버튼 터치 영역 */
+  div[data-testid="stAppViewContainer"] .main div[data-testid="stButton"] > button[kind="primary"],
+  div[data-testid="stAppViewContainer"] .main div[data-testid="stButton"] > button[data-testid="baseButton-primary"] {
+    min-height: 2.1rem !important;
+    font-size: 0.85rem !important;
+    padding: 0.25rem 0.55rem !important;
   }
 }
 </style>
