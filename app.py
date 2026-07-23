@@ -54,7 +54,13 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    div[data-testid="stSidebarContent"] { padding-top: 0.4rem; }
+    div[data-testid="stSidebarContent"] { padding-top: 0.15rem; }
+    section[data-testid="stSidebar"] div[data-testid="stImage"] {
+      margin-bottom: 0.35rem;
+    }
+    section[data-testid="stSidebar"] div[data-testid="stImage"] img {
+      border-radius: 6px;
+    }
     section[data-testid="stSidebar"][aria-expanded="true"] {
         min-width: 400px !important;
         max-width: 400px !important;
@@ -246,8 +252,12 @@ def _on_stock_search_change() -> None:
 
 
 # ---------- Sidebar ----------
+_LOGO_PATH = Path(__file__).resolve().parent / "assets" / "kumo_logo.png"
 with st.sidebar:
-    st.title("스크리너")
+    if _LOGO_PATH.exists():
+        st.image(str(_LOGO_PATH), use_container_width=True)
+    else:
+        st.title("스크리너")
     ui_mode = st.radio(
         "검색 방식",
         ["종목 검색", "필터 검색"],
