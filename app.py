@@ -41,14 +41,33 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# 사이드바 접으면 본문이 왼쪽으로 자연스럽게 확장되도록 고정 width 강제 제거
+# 사이드바 접으면 본문이 왼쪽까지 확장 / 필터 한 줄 유지
 st.markdown(
     """
     <style>
     div[data-testid="stSidebarContent"] { padding-top: 0.4rem; }
+    /* 펼쳤을 때만 살짝 넓게 — 접으면 Streamlit 기본 동작으로 본문 확장 */
     section[data-testid="stSidebar"][aria-expanded="true"] {
-        min-width: 400px;
-        max-width: 460px;
+        min-width: 380px;
+        max-width: 420px;
+    }
+    /* 본문: 가운데 고정 폭 해제 → 사이드바 옆부터 왼쪽 정렬 */
+    div[data-testid="stAppViewContainer"] .main .block-container {
+        max-width: 100% !important;
+        padding-left: 1.5rem;
+        padding-right: 1.5rem;
+    }
+    /* 사이드바 안 가로 블록이 좁아서 줄바꿈되지 않게 */
+    section[data-testid="stSidebar"] div[data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+        gap: 0.35rem !important;
+        align-items: center !important;
+    }
+    section[data-testid="stSidebar"] div[data-testid="column"] {
+        min-width: 0 !important;
+    }
+    section[data-testid="stSidebar"] div[data-testid="stNumberInput"] {
+        min-width: 0 !important;
     }
     </style>
     """,
