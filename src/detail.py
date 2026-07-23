@@ -60,16 +60,18 @@ div[data-testid="stDialog"] [data-testid="stMarkdownContainer"] p {
   height: 1px;
   background: #5a6578;
   min-width: 1.5rem;
-  max-width: calc(90% - 6.5rem);
 }
 .ks-cat-score {
   position: absolute;
-  left: 90%;
+  left: 95%;
   transform: translateX(-50%);
   color: #c5cddc;
   font-size: 0.95rem;
   font-weight: 700;
   white-space: nowrap;
+  background: #2f343c;
+  padding: 0 0.35rem;
+  z-index: 1;
 }
 .ks-cat-chips {
   display: flex;
@@ -202,15 +204,14 @@ def _category_header(title: str, score: int | None, *, show_score: bool = True) 
     else:
         score_html = ""
     # Streamlit이 class CSS를 가끔 무시해서 핵심 레이아웃은 인라인으로 고정
-    # 점수는 행 너비의 약 90% 지점 (끝보다 살짝 안쪽)
+    # 점수는 행 너비 95% 지점, 라인은 끝까지 이어짐
     score_block = ""
-    line_max = "100%"
     if show_score:
-        line_max = "calc(90% - 6.5rem)"
         score_block = (
-            f"<div class='ks-cat-score' style='position:absolute;left:90%;"
+            f"<div class='ks-cat-score' style='position:absolute;left:95%;"
             f"transform:translateX(-50%);color:#c5cddc;font-size:0.95rem;"
-            f"font-weight:700;white-space:nowrap;'>{escape(score_html)}</div>"
+            f"font-weight:700;white-space:nowrap;background:#2f343c;"
+            f"padding:0 0.35rem;z-index:1;'>{escape(score_html)}</div>"
         )
     return (
         f"<div class='ks-cat-head' style='position:relative;display:flex;align-items:center;"
@@ -219,7 +220,7 @@ def _category_header(title: str, score: int | None, *, show_score: bool = True) 
         f"font-weight:700;border-left:3px solid #7d8590;padding-left:0.55rem;"
         f"white-space:nowrap;'>{escape(title)}</div>"
         f"<div class='ks-cat-line' style='flex:1 1 auto;height:1px;background:#5a6578;"
-        f"min-width:1.5rem;max-width:{line_max};'></div>"
+        f"min-width:1.5rem;'></div>"
         f"{score_block}"
         f"</div>"
     )
