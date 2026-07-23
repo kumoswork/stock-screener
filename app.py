@@ -54,8 +54,8 @@ st.markdown(
     <style>
     div[data-testid="stSidebarContent"] { padding-top: 0.4rem; }
     section[data-testid="stSidebar"][aria-expanded="true"] {
-        min-width: 380px;
-        max-width: 420px;
+        min-width: 400px !important;
+        max-width: 400px !important;
     }
     div[data-testid="stAppViewContainer"] .main .block-container {
         max-width: 100% !important;
@@ -83,6 +83,33 @@ st.markdown(
         font-size: 0.78rem !important;
         min-height: 1.55rem !important;
         line-height: 1.2 !important;
+    }
+    /* 필터검색: 저장/스크리닝 버튼 하단 고정 */
+    #ks-filter-actions { display: none; }
+    section[data-testid="stSidebar"][aria-expanded="true"]
+      div[data-testid="stHorizontalBlock"]:has(button[kind="secondary"]):has(button[kind="primary"]),
+    section[data-testid="stSidebar"][aria-expanded="true"]
+      div[data-testid="element-container"]:has(#ks-filter-actions)
+      + div[data-testid="element-container"],
+    section[data-testid="stSidebar"][aria-expanded="true"]
+      div[data-testid="stElementContainer"]:has(#ks-filter-actions)
+      + div[data-testid="stElementContainer"] {
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        width: 400px !important;
+        max-width: 400px !important;
+        z-index: 1000001 !important;
+        margin: 0 !important;
+        padding: 0.65rem 1rem 1rem 1rem !important;
+        background: #0e1117 !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+        box-shadow: 0 -12px 28px rgba(0, 0, 0, 0.45) !important;
+        box-sizing: border-box !important;
+    }
+    section[data-testid="stSidebar"]:has(#ks-filter-actions)
+      [data-testid="stSidebarUserContent"] {
+        padding-bottom: 5.5rem !important;
     }
     </style>
     """,
@@ -233,6 +260,7 @@ with st.sidebar:
         st.divider()
         render_abs_filters(filters)
         render_sidebar_filters(filters)
+        st.markdown('<div id="ks-filter-actions"></div>', unsafe_allow_html=True)
         c_save, c_run = st.columns(2)
         with c_save:
             save_clicked = st.button("필터 저장", use_container_width=True)
@@ -243,7 +271,7 @@ with st.sidebar:
             state = collect_filter_state(market_label, FILTER_KEYS, ABS_KEYS)
             where = persist_filters(state)
             if save_clicked:
-                st.success(f"필터 저장됨 ({where})")
+                st.toast(f"필터 저장됨 ({where})")
 
 # ---------- Main ----------
 st.title("국내 상장주 스크리너")
