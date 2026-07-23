@@ -1,4 +1,4 @@
-"""Dark dashboard theme + HTML UI helpers (tabs, cards, table)."""
+"""List / detail UI helpers (cards, table, badges). Does not restyle the sidebar."""
 
 from __future__ import annotations
 
@@ -23,126 +23,26 @@ BADGE_STATUS = {
 }
 
 
-THEME_CSS = """
+LIST_DETAIL_CSS = """
 <style>
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
 
-html, body, [class*="css"] {
-  font-family: 'Pretendard', 'Noto Sans KR', sans-serif !important;
+.ks-wrap, .ks-wrap * {
+  font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
 }
 
-#MainMenu, footer, header { visibility: hidden; }
-[data-testid="stHeader"] { display: none; }
-[data-testid="stSidebar"] { display: none !important; }
-[data-testid="stSidebarCollapsedControl"] { display: none !important; }
-
-.stApp {
-  background: #0b111e !important;
-  color: #e8ecf4;
-}
-
-div[data-testid="stAppViewContainer"] .main .block-container {
-  max-width: 1180px !important;
-  padding: 1.1rem 1.4rem 3rem 1.4rem;
-}
-
-div[data-testid="stTextInput"] input,
-div[data-testid="stNumberInput"] input,
-div[data-testid="stSelectbox"] > div > div,
-div[data-baseweb="select"] > div {
-  background: #121826 !important;
-  color: #e8ecf4 !important;
-  border: 1px solid #2a3348 !important;
-  border-radius: 10px !important;
-}
-div[data-testid="stSelectbox"] label,
-div[data-testid="stNumberInput"] label,
-div[data-testid="stTextInput"] label,
-div[data-testid="stRadio"] label,
-.stMarkdown p, .stCaption, label {
-  color: #9aa3b5 !important;
-}
-
-div[data-testid="stButton"] > button[kind="primary"],
-div[data-testid="stButton"] > button[data-testid="baseButton-primary"] {
-  background: #4c8bf5 !important;
-  color: #fff !important;
-  border: none !important;
-  border-radius: 10px !important;
-  font-weight: 600 !important;
-  padding: 0.45rem 1.2rem !important;
-}
-div[data-testid="stButton"] > button {
-  border-radius: 10px !important;
-  border: 1px solid #2a3348 !important;
-  background: #151b2b !important;
-  color: #e8ecf4 !important;
-}
-
-div[data-testid="stRadio"] > div {
-  gap: 0.55rem !important;
-  flex-wrap: nowrap !important;
-}
-div[data-testid="stRadio"] label[data-baseweb="radio"] {
-  background: #151b2b !important;
-  border: 1px solid #2a3348 !important;
-  border-radius: 12px !important;
-  padding: 0.55rem 1.05rem !important;
-  min-width: 9.5rem;
-  justify-content: center;
-}
-div[data-testid="stRadio"] label[data-baseweb="radio"] > div:first-child {
-  display: none !important;
-}
-div[data-testid="stRadio"] label[data-baseweb="radio"] [data-testid="stMarkdownContainer"] p {
-  color: #c5cddc !important;
-  font-weight: 600 !important;
-  margin: 0 !important;
-  font-size: 0.95rem !important;
-}
-div[data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) {
-  background: #4c8bf5 !important;
-  border-color: #4c8bf5 !important;
-}
-div[data-testid="stRadio"] label[data-baseweb="radio"]:has(input:checked) [data-testid="stMarkdownContainer"] p {
-  color: #fff !important;
-}
-
-div[data-testid="stCheckbox"] label p { color: #d5dbe8 !important; }
-div[data-testid="stExpander"] {
-  background: #121826 !important;
-  border: 1px solid #2a3348 !important;
-  border-radius: 12px !important;
-}
-
-hr { border-color: #243049 !important; }
-
-/* 필터 한 줄 유지 */
-div[data-testid="stExpander"] div[data-testid="stHorizontalBlock"] {
-  flex-wrap: nowrap !important;
-  gap: 0.35rem !important;
-  align-items: center !important;
-}
-div[data-testid="stExpander"] div[data-testid="column"] {
-  min-width: 0 !important;
-}
-
-.ks-hint {
-  color: #8b95a8;
-  font-size: 0.88rem;
-  margin: 0.15rem 0 0.85rem 0;
-}
 .ks-status {
-  color: #9aa3b5;
+  color: #6b7385;
   font-size: 0.9rem;
-  padding-top: 0.55rem;
+  margin: 0.2rem 0 0.55rem 0;
 }
 .ks-card {
   background: #151b2b;
   border: 1px solid #2a3348;
   border-radius: 14px;
   padding: 1.1rem 1.25rem;
-  margin: 0.6rem 0 0.9rem 0;
+  margin: 0.45rem 0 0.85rem 0;
+  color: #e8ecf4;
 }
 .ks-score-row {
   display: flex;
@@ -152,13 +52,13 @@ div[data-testid="stExpander"] div[data-testid="column"] {
   align-items: flex-start;
 }
 .ks-title {
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 700;
   color: #f2f5fa;
   margin-bottom: 0.35rem;
 }
 .ks-score {
-  font-size: 2.6rem;
+  font-size: 2.4rem;
   font-weight: 800;
   color: #fff;
   line-height: 1.1;
@@ -170,15 +70,10 @@ div[data-testid="stExpander"] div[data-testid="column"] {
   font-size: 0.85rem;
   margin-top: 0.25rem;
 }
-.ks-side {
-  min-width: 180px;
-  text-align: right;
-}
-.ks-side-item {
-  margin-bottom: 0.45rem;
-}
+.ks-side { min-width: 160px; text-align: right; }
+.ks-side-item { margin-bottom: 0.4rem; }
 .ks-side-label { color: #8b95a8; font-size: 0.8rem; }
-.ks-side-val { color: #7eb6ff; font-size: 1.25rem; font-weight: 700; }
+.ks-side-val { color: #7eb6ff; font-size: 1.2rem; font-weight: 700; }
 
 .ks-badge {
   display: inline-block;
@@ -200,12 +95,12 @@ div[data-testid="stExpander"] div[data-testid="column"] {
   color: #c5cddc;
   font-weight: 700;
   font-size: 0.95rem;
-  margin: 0.4rem 0 0.7rem 0;
+  margin: 0.2rem 0 0.65rem 0;
 }
 .ks-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0.65rem;
+  gap: 0.6rem;
 }
 @media (max-width: 900px) {
   .ks-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -214,30 +109,19 @@ div[data-testid="stExpander"] div[data-testid="column"] {
   background: #121826;
   border: 1px solid #2a3348;
   border-radius: 12px;
-  padding: 0.75rem 0.8rem;
-  min-height: 92px;
+  padding: 0.7rem 0.75rem;
+  min-height: 88px;
 }
-.ks-metric .lab {
-  color: #8b95a8;
-  font-size: 0.75rem;
-  margin-bottom: 0.35rem;
-}
-.ks-metric .val {
-  color: #f2f5fa;
-  font-size: 1.15rem;
-  font-weight: 700;
-  margin-bottom: 0.3rem;
-}
-.ks-metric .st {
-  font-size: 0.78rem;
-}
+.ks-metric .lab { color: #8b95a8; font-size: 0.75rem; margin-bottom: 0.3rem; }
+.ks-metric .val { color: #f2f5fa; font-size: 1.1rem; font-weight: 700; margin-bottom: 0.25rem; }
+.ks-metric .st { font-size: 0.78rem; }
 
 .ks-table-wrap {
   background: #151b2b;
   border: 1px solid #2a3348;
   border-radius: 14px;
-  overflow: hidden;
-  margin-top: 0.6rem;
+  overflow-x: auto;
+  margin-top: 0.35rem;
 }
 .ks-table {
   width: 100%;
@@ -263,18 +147,18 @@ div[data-testid="stExpander"] div[data-testid="column"] {
 .ks-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .ks-table .name { font-weight: 600; }
 .ks-foot {
-  color: #6b7385;
+  color: #8b95a8;
   font-size: 0.78rem;
-  margin-top: 0.55rem;
+  margin-top: 0.5rem;
 }
 </style>
 """
 
 
-def inject_theme() -> None:
+def inject_list_detail_css() -> None:
     import streamlit as st
 
-    st.markdown(THEME_CSS, unsafe_allow_html=True)
+    st.markdown(LIST_DETAIL_CSS, unsafe_allow_html=True)
 
 
 def grade_badge_html(grade: str) -> str:
@@ -298,7 +182,7 @@ def render_score_card(
 ) -> str:
     badge = grade_badge_html(grade)
     return f"""
-    <div class="ks-card">
+    <div class="ks-wrap"><div class="ks-card">
       <div class="ks-score-row">
         <div>
           <div class="ks-title">{escape(name)} {escape(code)}</div>
@@ -319,11 +203,11 @@ def render_score_card(
           </div>
         </div>
       </div>
-    </div>
+    </div></div>
     """
 
 
-def render_metric_grid(items: list[tuple[str, str, str]]) -> str:
+def render_metric_grid(title: str, items: list[tuple[str, str, str]]) -> str:
     cards = []
     for lab, val, badge in items:
         cards.append(
@@ -336,10 +220,10 @@ def render_metric_grid(items: list[tuple[str, str, str]]) -> str:
             """
         )
     return f"""
-    <div class="ks-card">
-      <div class="ks-section-title">핵심 지표</div>
+    <div class="ks-wrap"><div class="ks-card">
+      <div class="ks-section-title">{escape(title)}</div>
       <div class="ks-grid">{''.join(cards)}</div>
-    </div>
+    </div></div>
     """
 
 
@@ -364,10 +248,10 @@ def render_result_table(df: pd.DataFrame, columns: list[str], labels: dict[str, 
                 tds.append(f'<td class="{cls}">{escape(format_cell(r, c))}</td>')
         rows_html.append("<tr>" + "".join(tds) + "</tr>")
     return f"""
-    <div class="ks-table-wrap">
+    <div class="ks-wrap"><div class="ks-table-wrap">
       <table class="ks-table">
         <thead><tr>{heads}</tr></thead>
         <tbody>{''.join(rows_html)}</tbody>
       </table>
-    </div>
+    </div></div>
     """

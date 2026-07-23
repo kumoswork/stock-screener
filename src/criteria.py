@@ -65,13 +65,13 @@ ABS_SPECS = [
 LIST_COLUMNS = [
     "corp_name",
     "stock_code",
-    "attractiveness",
-    "grade",
     "market",
     "current_price",
     "operating_margin",
     "revenue_growth",
     "revenue",
+    "attractiveness",
+    "grade",
 ]
 
 PRICE_FILTER_KEYS = {"pct_from_low", "bottom_dwell_ratio", "range_position"}
