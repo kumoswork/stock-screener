@@ -152,21 +152,6 @@ st.markdown(
         padding-top: 1rem !important;
       }
     }
-    /* 결과 목록: 데스크톱 다열 / 모바일 카드 show·hide */
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] #ks-mobile-results),
-    div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] #ks-mobile-results) {
-      display: none !important;
-    }
-    @media (max-width: 768px) {
-      div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] #ks-desktop-results),
-      div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] #ks-desktop-results) {
-        display: none !important;
-      }
-      div[data-testid="stVerticalBlock"]:has(> div[data-testid="stElementContainer"] #ks-mobile-results),
-      div[data-testid="stVerticalBlock"]:has(> div[data-testid="element-container"] #ks-mobile-results) {
-        display: block !important;
-      }
-    }
     </style>
     """,
     unsafe_allow_html=True,
