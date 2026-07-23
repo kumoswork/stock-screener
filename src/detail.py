@@ -1,4 +1,4 @@
-"""Detail modal — 점수+뱃지 상단, 카테고리 순서 고정, 6열 카드."""
+"""Detail modal — soft gray cards, fixed section order, 6 columns."""
 
 from __future__ import annotations
 
@@ -9,25 +9,28 @@ import pandas as pd
 import streamlit as st
 
 from criteria import score_row, specs_in_category
-from screener import format_account_krw, format_cell
-from ui_theme import GRADE_UI, grade_badge_html, status_html
+from screener import format_cell
+from ui_theme import GRADE_UI
 
 DETAIL_READABLE_CSS = """
 <style>
 div[data-testid="stDialog"] h3 {
-  font-size: 1.55rem !important;
+  font-size: 1.5rem !important;
   font-weight: 800 !important;
-  margin-bottom: 0.35rem !important;
+  color: #1f2937 !important;
+  margin-bottom: 0.3rem !important;
 }
 div[data-testid="stDialog"] h4 {
-  font-size: 1.12rem !important;
+  font-size: 1.08rem !important;
   font-weight: 700 !important;
-  margin: 0.9rem 0 0.4rem 0 !important;
+  color: #374151 !important;
+  margin: 1rem 0 0.45rem 0 !important;
+  border-left: 3px solid #94a3b8;
+  padding-left: 0.55rem;
 }
 </style>
 """
 
-# 표시 제목, 내부 category 키 (None이면 특수 섹션)
 DETAIL_SECTION_ORDER: list[tuple[str, str | None]] = [
     ("주가 현위치", "주가 현위치"),
     ("손익 요약", None),
@@ -37,6 +40,41 @@ DETAIL_SECTION_ORDER: list[tuple[str, str | None]] = [
     ("효율성", "효율성 check!"),
     ("매출증가율−부채증가율", "check!!"),
 ]
+
+# 라이트 그레이 테마용 뱃지 스타일
+_GRADE_STYLE = {
+    "A": ("적극 관심", "#dcfce7", "#15803d"),
+    "B": ("관심", "#dbeafe", "#1d4ed8"),
+    "C": ("보통", "#e5e7eb", "#4b5563"),
+    "D": ("주의", "#fee2e2", "#b91c1c"),
+}
+_STATUS_STYLE = {
+    "매우우수": ("매우우수", "#dcfce7", "#15803d"),
+    "우수": ("양호", "#dcfce7", "#16a34a"),
+    "보통": ("보통", "#e5e7eb", "#6b7280"),
+    "주의": ("주의", "#ffedd5", "#c2410c"),
+    "위험": ("약세", "#fee2e2", "#b91c1c"),
+    "해당없음": ("—", "#f3f4f6", "#9ca3af"),
+}
+
+
+def _pill(label: str, bg: str, fg: str) -> str:
+    return (
+        f"<span style='display:inline-block;padding:0.15rem 0.55rem;border-radius:999px;"
+        f"background:{bg};color:{fg};font-size:0.82rem;font-weight:700;'>"
+        f"{escape(label)}</span>"
+    )
+
+
+def _grade_pill(grade: str) -> str:
+    label = GRADE_UI.get(str(grade), (str(grade), ""))[0]
+    _, bg, fg = _GRADE_STYLE.get(str(grade), (label, "#e5e7eb", "#4b5563"))
+    return _pill(label, bg, fg)
+
+
+def _status_pill(badge: str) -> str:
+    label, bg, fg = _STATUS_STYLE.get(badge, (badge or "—", "#f3f4f6", "#9ca3af"))
+    return _pill(label, bg, fg)
 
 
 @st.dialog("종목 상세", width="large")
@@ -52,22 +90,25 @@ def detail_dialog(row_dict: dict) -> None:
     grade_label = GRADE_UI.get(grade, (grade, "neutral"))[0]
     badges = sc["badges"]
 
-    # ---- 상단: 점수 + 뱃지만 ----
-    st.markdown(f"### {escape(name)}  ·  {code}")
+    # ---- 상단 요약 카드 ----
     st.markdown(
-        f"<div style='color:#666;font-size:1rem;margin-bottom:0.15rem;'>통합 점수</div>"
-        f"<div style='display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;'>"
-        f"<span style='font-size:3rem;font-weight:800;line-height:1.05;'>{score}점</span>"
-        f"<span style='font-size:1.05rem;'>{grade_badge_html(grade)}</span>"
+        f"<div style='background:#e5e7eb;border:1px solid #d1d5db;border-radius:14px;"
+        f"padding:1rem 1.15rem;margin-bottom:0.35rem;'>"
+        f"<div style='font-size:1.25rem;font-weight:800;color:#111827;margin-bottom:0.45rem;'>"
+        f"{escape(name)} <span style='color:#6b7280;font-weight:600;font-size:1.05rem;'>{code}</span></div>"
+        f"<div style='color:#6b7280;font-size:0.92rem;margin-bottom:0.1rem;'>통합 점수</div>"
+        f"<div style='display:flex;align-items:center;gap:0.7rem;flex-wrap:wrap;'>"
+        f"<span style='font-size:2.75rem;font-weight:800;line-height:1;color:#111827;'>{score}점</span>"
+        f"{_grade_pill(grade)}"
         f"</div>"
-        f"<div style='color:#666;font-size:0.95rem;margin-top:0.3rem;'>등급 {escape(grade_label)}</div>",
+        f"<div style='color:#6b7280;font-size:0.9rem;margin-top:0.35rem;'>등급 {escape(grade_label)}</div>"
+        f"</div>",
         unsafe_allow_html=True,
     )
 
     for title, cat_key in DETAIL_SECTION_ORDER:
         st.markdown(f"#### {title}")
         if cat_key is None:
-            # 손익 요약
             tiles = []
             for key, label in [
                 ("revenue", "매출액"),
@@ -99,47 +140,14 @@ def detail_dialog(row_dict: dict) -> None:
                 )
 
         for spec in specs_in_category(cat_key):
-            val = row.get(spec.key)
-            display = _fmt_metric(spec.key, val)
-            tiles.append((spec.label, display, badges.get(spec.key, "해당없음")))
+            tiles.append(
+                (spec.label, _fmt_metric(spec.key, row.get(spec.key)), badges.get(spec.key, "해당없음"))
+            )
 
         if tiles:
             _render_metric_tiles(tiles)
         else:
             st.caption("데이터 없음")
-
-    # 재무제표 계정 (맨 아래)
-    st.markdown("#### 주요 금액 · 재무제표")
-    account_rows = [
-        ("current_assets", "유동자산"),
-        ("cash", "현금및현금성자산"),
-        ("short_term_financial", "단기금융상품"),
-        ("receivables", "매출채권"),
-        ("inventory", "재고자산"),
-        ("total_assets", "자산총계"),
-        ("current_liabilities", "유동부채"),
-        ("total_liabilities", "부채총계"),
-        ("total_equity", "자본총계"),
-        ("advances", "선수금/예수금"),
-        ("revenue", "매출액"),
-        ("cogs", "매출원가"),
-        ("gross_profit", "매출총이익"),
-        ("sga", "판매비와관리비"),
-        ("operating_profit", "영업이익"),
-        ("net_income", "당기순이익"),
-        ("operating_cash_flow", "영업활동현금흐름"),
-        ("capex", "시설투자(Capex)"),
-        ("dividends_paid", "배당금지급"),
-    ]
-    shown_accounts = [
-        (lab, format_account_krw(row.get(k)))
-        for k, lab in account_rows
-        if k in row.index and _has(row.get(k))
-    ]
-    if shown_accounts:
-        _render_account_rows(shown_accounts)
-    else:
-        st.caption("원장 계정이 스냅샷에 없으면 위 지표·금액만 표시됩니다.")
 
 
 def _render_metric_tiles(items: list[tuple[str, str, str]]) -> None:
@@ -149,31 +157,15 @@ def _render_metric_tiles(items: list[tuple[str, str, str]]) -> None:
         cols = st.columns(cols_per_row)
         for col, (lab, val, badge) in zip(cols, chunk):
             with col:
-                # 배경색 없이 기본 톤 + 얇은 구분만
                 st.markdown(
-                    f"<div style='border:1px solid rgba(49,51,63,0.2);border-radius:10px;"
-                    f"padding:0.7rem 0.55rem;min-height:100px;'>"
-                    f"<div style='font-size:0.88rem;margin-bottom:0.3rem;opacity:0.75;font-weight:600;'>"
+                    f"<div style='background:#e8eaee;border:1px solid #d5d8de;border-radius:12px;"
+                    f"padding:0.75rem 0.6rem;min-height:104px;"
+                    f"box-shadow:0 1px 2px rgba(15,23,42,0.04);'>"
+                    f"<div style='font-size:0.86rem;margin-bottom:0.3rem;color:#6b7280;font-weight:600;'>"
                     f"{escape(lab)}</div>"
-                    f"<div style='font-size:1.2rem;font-weight:800;margin-bottom:0.35rem;line-height:1.25;'>"
-                    f"{escape(str(val))}</div>"
-                    f"<div style='font-size:0.9rem;'>{status_html(badge)}</div>"
-                    f"</div>",
-                    unsafe_allow_html=True,
-                )
-
-
-def _render_account_rows(rows: list[tuple[str, str]]) -> None:
-    for i in range(0, len(rows), 2):
-        chunk = rows[i : i + 2]
-        cols = st.columns(2)
-        for col, (lab, val) in zip(cols, chunk):
-            with col:
-                st.markdown(
-                    f"<div style='display:flex;justify-content:space-between;align-items:center;"
-                    f"border-bottom:1px solid rgba(49,51,63,0.15);padding:0.5rem 0.1rem;'>"
-                    f"<span style='font-size:1.02rem;'>{escape(lab)}</span>"
-                    f"<span style='font-size:1.1rem;font-weight:700;'>{escape(val)}</span>"
+                    f"<div style='font-size:1.18rem;font-weight:800;margin-bottom:0.4rem;"
+                    f"line-height:1.25;color:#111827;'>{escape(str(val))}</div>"
+                    f"<div>{_status_pill(badge)}</div>"
                     f"</div>",
                     unsafe_allow_html=True,
                 )
