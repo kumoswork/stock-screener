@@ -184,7 +184,11 @@ def cached_prices_df(codes: list[str]) -> pd.DataFrame:
     return pd.DataFrame(rows) if rows else pd.DataFrame()
 
 
-def fetch_prices_for_codes(codes: list[str], name_map: dict[str, str]) -> pd.DataFrame:
+def fetch_prices_for_codes(
+    codes: list[str],
+    name_map: dict[str, str],
+    market_map: dict[str, str] | None = None,
+) -> pd.DataFrame:
     today = str(date.today())
     if st.session_state.get("price_cache_date") != today:
         st.session_state["price_cache"] = {}
@@ -198,11 +202,17 @@ def fetch_prices_for_codes(codes: list[str], name_map: dict[str, str]) -> pd.Dat
 
         def on_prog(cur, total, name):
             bar.progress(min(cur / max(total, 1), 1.0))
-            if cur == 1 or cur % 10 == 0 or cur == total:
-                status.caption(f"주가 {cur}/{total} {name}")
+            status.caption(f"주가 {cur}/{total} {name}")
 
         with st.spinner(f"검색된 {len(missing)}종목 주가 조회 중..."):
-            fresh = fetch_price_metrics(missing, name_map, progress_callback=on_prog, max_workers=8)
+            fresh = fetch_price_metrics(
+                missing,
+                name_map,
+                progress_callback=on_prog,
+                max_workers=12,
+                markets=market_map,
+                per_stock_timeout=12.0,
+            )
         if not fresh.empty:
             for _, row in fresh.iterrows():
                 code = str(row["stock_code"]).zfill(6)
@@ -310,7 +320,12 @@ if should_query or "last_result" in st.session_state:
                 st.warning(f"통과 {len(candidates)}종목 → 주가는 상위 {MAX_PRICE_FETCH}개만 조회")
             codes = fetch_df["stock_code"].astype(str).str.zfill(6).tolist()
             name_map = dict(zip(codes, fetch_df["corp_name"]))
-            prices = fetch_prices_for_codes(codes, name_map)
+            market_map = None
+            if "market" in fetch_df.columns:
+                market_map = dict(
+                    zip(codes, fetch_df["market"].astype(str).fillna("").tolist())
+                )
+            prices = fetch_prices_for_codes(codes, name_map, market_map)
             merged = merge_financial_and_price(fetch_df, prices)
             if search_mode:
                 filtered = merged
