@@ -123,10 +123,11 @@ def _metrics_from_ohlcv(
     low_52w = float(recent[low_col].min())
     high_52w = float(recent[high_col].max()) if high_col in recent.columns else low_52w
     current = float(recent[close_col].iloc[-1])
-    if low_52w <= 0:
+    avg_52w = float(recent[close_col].mean())
+    if low_52w <= 0 or avg_52w <= 0:
         return None
 
-    pct_from_low = (current - low_52w) / low_52w * 100
+    pct_from_avg_52w = (current - avg_52w) / avg_52w * 100
     range_position = (
         (current - low_52w) / (high_52w - low_52w) * 100 if high_52w > low_52w else 0.0
     )
@@ -143,7 +144,8 @@ def _metrics_from_ohlcv(
         "current_price": current,
         "low_52w": low_52w,
         "high_52w": high_52w,
-        "pct_from_low": round(pct_from_low, 2),
+        "avg_52w": round(avg_52w, 2),
+        "pct_from_avg_52w": round(pct_from_avg_52w, 2),
         "range_position": round(range_position, 2),
         "bottom_dwell_ratio": round(bottom_dwell_ratio, 2) if bottom_dwell_ratio is not None else None,
     }

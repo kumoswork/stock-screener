@@ -57,7 +57,8 @@ def init_db(conn: sqlite3.Connection) -> None:
             current_price REAL,
             low_52w REAL,
             high_52w REAL,
-            pct_from_low REAL,
+            avg_52w REAL,
+            pct_from_avg_52w REAL,
             range_position REAL,
             bottom_dwell_ratio REAL,
             updated_at TEXT

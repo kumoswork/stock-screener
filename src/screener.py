@@ -24,7 +24,7 @@ SORT_LABELS = {
     "attractiveness": "점수",
     "grade": "등급",
     "current_price": "현재가",
-    "pct_from_low": "저점대비(%)",
+    "pct_from_avg_52w": "평균대비(%)",
     "range_position": "52주위치(%)",
     "bottom_dwell_ratio": "바닥체류(%)",
     "current_ratio": "유동비율(%)",
@@ -83,7 +83,7 @@ def merge_financial_and_price(financials: pd.DataFrame, prices: pd.DataFrame) ->
     if financials.empty:
         return pd.DataFrame()
     base = financials.copy()
-    for c in ["current_price", "low_52w", "high_52w", "pct_from_low", "range_position", "bottom_dwell_ratio"]:
+    for c in ["current_price", "low_52w", "high_52w", "avg_52w", "pct_from_avg_52w", "range_position", "bottom_dwell_ratio"]:
         if c in base.columns:
             base = base.drop(columns=[c])
     if prices is None or prices.empty:
@@ -95,7 +95,8 @@ def merge_financial_and_price(financials: pd.DataFrame, prices: pd.DataFrame) ->
             "current_price",
             "low_52w",
             "high_52w",
-            "pct_from_low",
+            "avg_52w",
+            "pct_from_avg_52w",
             "range_position",
             "bottom_dwell_ratio",
         ]
@@ -319,7 +320,7 @@ def format_display_df(df: pd.DataFrame) -> pd.DataFrame:
             display[col] = display[col].apply(_format_krw_big)
 
     pct_cols = [
-        "pct_from_low",
+        "pct_from_avg_52w",
         "range_position",
         "bottom_dwell_ratio",
         "current_ratio",
@@ -362,7 +363,7 @@ def format_account_krw(value) -> str:
 
 
 PCT_FORMAT_COLS = {
-    "pct_from_low",
+    "pct_from_avg_52w",
     "range_position",
     "bottom_dwell_ratio",
     "current_ratio",

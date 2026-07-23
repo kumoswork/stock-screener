@@ -315,6 +315,14 @@ def detail_dialog(stock_code: str) -> None:
                         "해당없음",
                     )
                 )
+            if _has(row.get("avg_52w")):
+                tiles.append(
+                    (
+                        "52주 평균가",
+                        _price(row.get("avg_52w")),
+                        "해당없음",
+                    )
+                )
             if _has(row.get("low_52w")):
                 tiles.append(
                     (
@@ -376,7 +384,8 @@ def _load_detail_row(stock_code: str) -> pd.Series | None:
                 "current_price",
                 "low_52w",
                 "high_52w",
-                "pct_from_low",
+                "avg_52w",
+                "pct_from_avg_52w",
                 "range_position",
                 "bottom_dwell_ratio",
             ):

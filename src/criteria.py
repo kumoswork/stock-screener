@@ -50,7 +50,7 @@ FILTER_SPECS: list[FilterSpec] = [
     # check!!
     FilterSpec("revenue_minus_debt_growth", "매출−부채증가", "check!!", "매출성장이 부채성장 이상", "min", 0.0, None, True, "%p"),
     # 주가
-    FilterSpec("pct_from_low", "저점대비상승", "주가 현위치", "저점 대비 상승폭 (낮을수록)", "max", None, 50.0, False, "%"),
+    FilterSpec("pct_from_avg_52w", "52주평균대비", "주가 현위치", "현재가 ÷ 52주 평균종가 - 1 (낮을수록)", "max", None, 0.0, False, "%"),
     FilterSpec("bottom_dwell_ratio", "바닥체류", "주가 현위치", "바닥권 체류 비율 (높을수록)", "min", 50.0, None, True, "%"),
 ]
 
@@ -74,7 +74,7 @@ LIST_COLUMNS = [
     "grade",
 ]
 
-PRICE_FILTER_KEYS = {"pct_from_low", "bottom_dwell_ratio", "range_position"}
+PRICE_FILTER_KEYS = {"pct_from_avg_52w", "bottom_dwell_ratio", "range_position"}
 
 
 def categories_order() -> list[str]:

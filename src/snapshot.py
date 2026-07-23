@@ -17,7 +17,8 @@ PRICE_COLS = [
     "current_price",
     "low_52w",
     "high_52w",
-    "pct_from_low",
+    "avg_52w",
+    "pct_from_avg_52w",
     "range_position",
     "bottom_dwell_ratio",
 ]
