@@ -21,7 +21,7 @@ SORT_LABELS = {
     "corp_name": "종목명",
     "stock_code": "코드",
     "market": "시장",
-    "attractiveness": "매력지수",
+    "attractiveness": "점수",
     "grade": "등급",
     "current_price": "현재가",
     "pct_from_low": "저점대비(%)",
@@ -33,15 +33,19 @@ SORT_LABELS = {
     "roe": "ROE(%)",
     "roa": "ROA(%)",
     "operating_margin": "영업이익률",
-    "revenue_growth": "매출성장률",
+    "revenue_growth": "매출성장",
     "revenue": "매출액",
     "operating_profit": "영업이익",
     "net_income": "당기순이익",
 }
 
 # 결과 리스트 열 폭 (종목명+상세 포함)
-LIST_WIDTHS = [2.0, 0.85, 0.75, 1.0, 0.95, 0.95, 1.0, 0.75, 0.75]
+LIST_WIDTHS = [2.2, 0.8, 0.7, 0.95, 0.95, 0.95, 0.95, 0.7, 0.85]
 
+# 헤더/값 정렬: 종목명만 왼쪽, 나머지 가운데
+LIST_ALIGN = {
+    "corp_name": "left",
+}
 
 def all_filter_keys() -> list[str]:
     return [s.key for s in FILTER_SPECS]

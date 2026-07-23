@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import sys
 from datetime import date
+from html import escape
 from pathlib import Path
 
 import pandas as pd
@@ -174,6 +175,30 @@ st.markdown(
         font-size: 0.78rem !important;
         min-height: 1.55rem !important;
         line-height: 1.2 !important;
+    }
+    /* 결과 리스트: 헤더·값 세로/가로 정렬 */
+    div[data-testid="stAppViewContainer"] .main div[data-testid="stHorizontalBlock"] {
+      align-items: center !important;
+      gap: 0.35rem !important;
+    }
+    div[data-testid="stAppViewContainer"] .main .ks-th,
+    div[data-testid="stAppViewContainer"] .main .ks-td {
+      margin: 0 !important;
+      line-height: 1.35 !important;
+      font-size: 0.92rem !important;
+    }
+    div[data-testid="stAppViewContainer"] .main .ks-th {
+      font-weight: 700 !important;
+      color: inherit !important;
+    }
+    div[data-testid="stAppViewContainer"] .main .ks-align-left {
+      text-align: left !important;
+    }
+    div[data-testid="stAppViewContainer"] .main .ks-align-center {
+      text-align: center !important;
+    }
+    div[data-testid="stAppViewContainer"] .main .ks-align-right {
+      text-align: right !important;
     }
     /* 모바일 */
     @media (max-width: 768px) {
@@ -472,9 +497,19 @@ if should_query or "last_result" in st.session_state:
         if display_cols and display_cols[0] == "corp_name":
             widths[0] = 2.35
 
-        header = st.columns(widths)
+        def _align(col: str) -> str:
+            return "left" if col == "corp_name" else "center"
+
+        def _head(col: str) -> str:
+            label = SORT_LABELS.get(col, col)
+            return f'<p class="ks-th ks-align-{_align(col)}">{label}</p>'
+
+        def _cell(text: str, col: str) -> str:
+            return f'<p class="ks-td ks-align-{_align(col)}">{text}</p>'
+
+        header = st.columns(widths, vertical_alignment="center")
         for i, col in enumerate(display_cols):
-            header[i].markdown(f"**{SORT_LABELS.get(col, col)}**")
+            header[i].markdown(_head(col), unsafe_allow_html=True)
 
         st.markdown(
             "<hr style='margin:0.3rem 0 0.45rem 0; border:none; border-top:1px solid #c8c8c8;'>",
@@ -483,29 +518,35 @@ if should_query or "last_result" in st.session_state:
 
         for _, r in show.iterrows():
             code = str(r["stock_code"]).zfill(6)
-            row_cols = st.columns(widths)
+            row_cols = st.columns(widths, vertical_alignment="center")
             for i, col in enumerate(display_cols):
                 if col == "corp_name":
                     with row_cols[i]:
-                        n1, n2 = st.columns([3.0, 1.05])
-                        n1.markdown(f"**{r['corp_name']}**")
+                        n1, n2 = st.columns([3.0, 1.05], vertical_alignment="center")
+                        n1.markdown(
+                            _cell(f"<b>{escape(str(r['corp_name']))}</b>", col),
+                            unsafe_allow_html=True,
+                        )
                         if n2.button("상세", type="primary", key=f"detail_btn_{code}"):
                             st.session_state["open_detail_code"] = code
                 elif col == "stock_code":
-                    row_cols[i].write(code)
+                    row_cols[i].markdown(_cell(code, col), unsafe_allow_html=True)
                 elif col == "market":
                     m = r.get("market", "")
                     label = {"KOSPI": "코스피", "KOSDAQ": "코스닥"}.get(
                         str(m), str(m) if pd.notna(m) else "-"
                     )
-                    row_cols[i].write(label)
+                    row_cols[i].markdown(_cell(label, col), unsafe_allow_html=True)
                 elif col == "grade":
                     row_cols[i].markdown(
-                        grade_badge_html(str(r.get("grade", ""))),
+                        f'<div class="ks-align-center">{grade_badge_html(str(r.get("grade", "")))}</div>',
                         unsafe_allow_html=True,
                     )
                 else:
-                    row_cols[i].write(format_cell(r, col))
+                    row_cols[i].markdown(
+                        _cell(escape(str(format_cell(r, col))), col),
+                        unsafe_allow_html=True,
+                    )
 
             st.markdown(
                 "<hr style='margin:0.15rem 0; border:none; border-top:1px solid #e6e6e6;'>",
@@ -518,14 +559,6 @@ if should_query or "last_result" in st.session_state:
             if not hit.empty:
                 open_detail_for_row(hit.iloc[0])
 
-        st.download_button(
-            "CSV 다운로드",
-            filtered.drop(columns=[c for c in filtered.columns if c.startswith("_")], errors="ignore")
-            .to_csv(index=False)
-            .encode("utf-8-sig"),
-            file_name="screener_result.csv",
-            mime="text/csv",
-        )
 else:
     if search_mode:
         st.info("왼쪽에서 종목을 선택하세요. (엔터로 선택하면 바로 조회됩니다)")
