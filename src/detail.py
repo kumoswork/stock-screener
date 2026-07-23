@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from html import escape
-from typing import Any
 
 import pandas as pd
 import streamlit as st
@@ -90,10 +89,14 @@ def _status_pill(badge: str) -> str:
 
 
 @st.dialog("종목 상세", width="large")
-def detail_dialog(row_dict: dict) -> None:
+def detail_dialog(stock_code: str) -> None:
     st.markdown(DETAIL_READABLE_CSS, unsafe_allow_html=True)
 
-    row = pd.Series(_restore_row(row_dict))
+    row = _load_detail_row(stock_code)
+    if row is None:
+        st.error(f"종목 데이터를 찾을 수 없습니다 ({stock_code})")
+        return
+
     sc = score_row(row)
     name = str(row.get("corp_name", "") or "")
     code = str(row.get("stock_code", "") or "").zfill(6)
@@ -162,6 +165,42 @@ def detail_dialog(row_dict: dict) -> None:
             st.caption("데이터 없음")
 
 
+def _load_detail_row(stock_code: str) -> pd.Series | None:
+    """상세는 항상 최신 재무 스냅샷을 다시 읽고, 주가 필드는 최근 결과에서 보강."""
+    from snapshot import load_financials
+
+    code = str(stock_code).zfill(6)
+    fin = load_financials()
+    if fin.empty or "stock_code" not in fin.columns:
+        return None
+    fin = fin.copy()
+    fin["stock_code"] = fin["stock_code"].astype(str).str.zfill(6)
+    hit = fin[fin["stock_code"] == code]
+    if hit.empty:
+        return None
+    row = hit.iloc[0].copy()
+
+    # 주가·점수 등은 방금 조회한 결과에서 덮어씀
+    cached = st.session_state.get("last_result")
+    if isinstance(cached, pd.DataFrame) and not cached.empty and "stock_code" in cached.columns:
+        tmp = cached.copy()
+        tmp["stock_code"] = tmp["stock_code"].astype(str).str.zfill(6)
+        c_hit = tmp[tmp["stock_code"] == code]
+        if not c_hit.empty:
+            overlay = c_hit.iloc[0]
+            for col in (
+                "current_price",
+                "low_52w",
+                "high_52w",
+                "pct_from_low",
+                "range_position",
+                "bottom_dwell_ratio",
+            ):
+                if col in overlay.index and _has(overlay.get(col)):
+                    row[col] = overlay[col]
+    return row
+
+
 def _render_metric_tiles(items: list[tuple[str, str, str]]) -> None:
     """기존 다크 카드 스타일, 한 줄 6개."""
     cols_per_row = 6
@@ -184,36 +223,8 @@ def _render_metric_tiles(items: list[tuple[str, str, str]]) -> None:
 
 
 def open_detail_for_row(row: pd.Series) -> None:
-    raw = row.drop(labels=[c for c in row.index if str(c).startswith("_")], errors="ignore")
-    detail_dialog(_json_safe(raw.to_dict()))
-
-
-def _json_safe(data: dict[str, Any]) -> dict[str, Any]:
-    out: dict[str, Any] = {}
-    for k, v in data.items():
-        if v is None:
-            out[str(k)] = None
-            continue
-        try:
-            if pd.isna(v):
-                out[str(k)] = None
-                continue
-        except (TypeError, ValueError):
-            pass
-        if hasattr(v, "item"):
-            try:
-                v = v.item()
-            except Exception:
-                pass
-        if isinstance(v, float) and (v != v):
-            out[str(k)] = None
-        else:
-            out[str(k)] = v
-    return out
-
-
-def _restore_row(row_dict: dict) -> dict:
-    return {k: (None if v == "" else v) for k, v in row_dict.items()}
+    code = str(row.get("stock_code", "")).zfill(6)
+    detail_dialog(code)
 
 
 def _has(v) -> bool:

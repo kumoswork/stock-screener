@@ -106,7 +106,26 @@ def get_financials(_version: str):
 
 
 _meta = financials_meta()
-financials = get_financials(_meta)
+try:
+    from snapshot import FINANCIALS_PATH
+
+    _csv_sig = (
+        f"{FINANCIALS_PATH.stat().st_mtime_ns}:{FINANCIALS_PATH.stat().st_size}"
+        if FINANCIALS_PATH.exists()
+        else "none"
+    )
+except Exception:
+    _csv_sig = "na"
+_data_version = f"{_meta}|{_csv_sig}|ni-fix-2"
+
+# 스냅샷이 바뀌면 예전 검색결과(당기순이익 0 등) 폐기
+if st.session_state.get("_data_version") != _data_version:
+    get_financials.clear()
+    st.session_state.pop("last_result", None)
+    st.session_state.pop("last_candidate_count", None)
+    st.session_state["_data_version"] = _data_version
+
+financials = get_financials(_data_version)
 ABS_KEYS = ["revenue", "operating_profit", "net_income"]
 FILTER_KEYS = all_filter_keys()
 
