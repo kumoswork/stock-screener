@@ -37,11 +37,11 @@ FILTER_SPECS: list[FilterSpec] = [
     FilterSpec("quick_ratio", "당좌비율", "안전성 check!", "(유동자산-재고)/유동부채", "min", 100.0, None, True, "%"),
     FilterSpec("debt_ratio", "부채비율", "안전성 check!", "부채총액/자본총액 (50~200% 우수)", "range", 50.0, 200.0, True, "%"),
     FilterSpec("cash_months", "현금규모(개월)", "안전성 check!", "현금성자산/월 판관비", "min", 12.0, None, True, "개월"),
-    # 수익/성장
-    FilterSpec("revenue_growth", "매출성장율", "수익/성장성 check!", "(당기-전기)매출/전기", "min", 80.0, None, True, "%"),
-    FilterSpec("gross_margin", "매출총이익율", "수익/성장성 check!", "매출총이익/매출", "min", 30.0, None, True, "%"),
-    FilterSpec("operating_margin", "영업이익률", "수익/성장성 check!", "영업이익/매출", "min", 20.0, None, True, "%"),
-    FilterSpec("net_margin", "당기순이익율", "수익/성장성 check!", "당기순이익/매출", "min", 20.0, None, True, "%"),
+    # 수익/성장 — 뱃지: 0%↑양호, 40%↑우수, 80%↑매우우수 (필터 기본=우수 40)
+    FilterSpec("revenue_growth", "매출성장율", "수익/성장성 check!", "(당기-전기)매출/전기", "min", 40.0, None, True, "%"),
+    FilterSpec("gross_margin", "매출총이익율", "수익/성장성 check!", "매출총이익/매출", "min", 40.0, None, True, "%"),
+    FilterSpec("operating_margin", "영업이익률", "수익/성장성 check!", "영업이익/매출", "min", 40.0, None, True, "%"),
+    FilterSpec("net_margin", "당기순이익율", "수익/성장성 check!", "당기순이익/매출", "min", 40.0, None, True, "%"),
     # 효율
     FilterSpec("roa", "총자산이익율(ROA)", "효율성 check!", "당기순이익/총자산", "min", 5.0, None, True, "%"),
     FilterSpec("roe", "자기자본이익율(ROE)", "효율성 check!", "당기순이익/자기자본", "min", 15.0, None, True, "%"),
@@ -89,10 +89,30 @@ def specs_in_category(category: str) -> list[FilterSpec]:
     return [s for s in FILTER_SPECS if s.category == category]
 
 
+GROWTH_PROFIT_KEYS = {
+    "revenue_growth",
+    "gross_margin",
+    "operating_margin",
+    "net_margin",
+}
+
+
 def badge_for_value(spec: FilterSpec, value: float | None) -> str:
-    """우수 / 매우우수 / 보통 / 주의 / 위험 / 해당없음"""
+    """우수 / 매우우수 / 보통(양호) / 주의 / 위험 / 해당없음"""
     if value is None or (isinstance(value, float) and pd.isna(value)):
         return "해당없음"
+
+    # 수익/성장성: 0%↑ 양호(보통), 40%↑ 우수, 80%↑ 매우우수
+    if spec.key in GROWTH_PROFIT_KEYS:
+        if value >= 80:
+            return "매우우수"
+        if value >= 40:
+            return "우수"
+        if value >= 0:
+            return "보통"  # UI에서 '양호'로 표시
+        if value >= -20:
+            return "주의"
+        return "위험"
 
     # range (debt)
     if spec.direction == "range":

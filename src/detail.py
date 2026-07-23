@@ -60,8 +60,8 @@ _GRADE_STYLE = {
 }
 _STATUS_STYLE = {
     "매우우수": ("매우우수", "transparent", "#3dd68c"),
-    "우수": ("양호", "transparent", "#3dd68c"),
-    "보통": ("보통", "transparent", "#9aa3b5"),
+    "우수": ("우수", "transparent", "#3dd68c"),
+    "보통": ("양호", "transparent", "#3dd68c"),
     "주의": ("주의", "rgba(240,113,120,0.16)", "#f07178"),
     "위험": ("약세", "rgba(240,113,120,0.16)", "#f07178"),
     "해당없음": ("—", "transparent", "#6b7385"),
