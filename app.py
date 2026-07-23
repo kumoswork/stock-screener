@@ -230,6 +230,15 @@ def _on_ui_mode_change() -> None:
     st.session_state.pop("open_detail_code", None)
 
 
+def _on_stock_search_change() -> None:
+    """자동완성에서 종목 선택(엔터 포함) 시 바로 조회."""
+    choice = st.session_state.get("stock_search_select")
+    if choice and choice != "종목을 선택하세요":
+        st.session_state["_auto_run_stock"] = True
+    else:
+        st.session_state.pop("_auto_run_stock", None)
+
+
 # ---------- Sidebar ----------
 with st.sidebar:
     st.title("스크리너")
@@ -254,9 +263,12 @@ with st.sidebar:
             "종목 (자동완성)",
             options=["종목을 선택하세요"] + _stock_labels,
             key="stock_search_select",
-            help="입력하면 목록이 필터됩니다.",
+            help="입력 후 엔터로 선택하면 바로 조회됩니다.",
+            on_change=_on_stock_search_change,
         )
         run = st.button("조회", type="primary", use_container_width=True)
+        if st.session_state.pop("_auto_run_stock", False):
+            run = True
         market = "ALL"
     else:
         market_label = st.radio(
