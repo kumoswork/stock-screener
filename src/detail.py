@@ -7,7 +7,7 @@ from html import escape
 import pandas as pd
 import streamlit as st
 
-from criteria import score_row, specs_in_category
+from criteria import CATEGORY_LABELS, CATEGORY_WEIGHTS, categories_order, score_row, specs_in_category
 from screener import format_cell, format_metric_value
 from ui_theme import GRADE_UI
 
@@ -104,25 +104,49 @@ def detail_dialog(stock_code: str) -> None:
     grade = str(sc["grade"])
     grade_label = GRADE_UI.get(grade, (grade, "neutral"))[0]
     badges = sc["badges"]
+    cat_scores: dict = sc.get("category_scores") or {}
 
-    # 상단: 점수 + 뱃지 (기존 다크 카드 톤)
+    cat_chips = []
+    for cat_key in categories_order():
+        label = CATEGORY_LABELS.get(cat_key, cat_key)
+        cs = cat_scores.get(cat_key)
+        val = f"{int(cs)}" if cs is not None else "—"
+        pct = int(round(CATEGORY_WEIGHTS.get(cat_key, 0) * 100))
+        cat_chips.append(
+            f"<div style='min-width:4.6rem;'>"
+            f"<div style='color:#8b95a8;font-size:0.72rem;'>{escape(label)} · {pct}%</div>"
+            f"<div style='color:#e8eaed;font-size:1.05rem;font-weight:700;'>{val}</div>"
+            f"</div>"
+        )
+    cat_row = (
+        "<div style='display:flex;gap:0.85rem;flex-wrap:wrap;margin-top:0.85rem;"
+        "padding-top:0.75rem;border-top:1px solid #2a3348;'>"
+        + "".join(cat_chips)
+        + "</div>"
+    )
+
+    # 상단: 점수 + 카테고리 소점수
     st.markdown(
         f"<div style='background:#151b2b;border:1px solid #2a3348;border-radius:14px;"
         f"padding:1rem 1.15rem;margin-bottom:0.35rem;'>"
         f"<div style='font-size:1.2rem;font-weight:800;color:#f2f5fa;margin-bottom:0.4rem;'>"
         f"{escape(name)} <span style='color:#8b95a8;font-weight:500;font-size:1rem;'>{code}</span></div>"
-        f"<div style='color:#8b95a8;font-size:0.9rem;margin-bottom:0.1rem;'>통합 점수</div>"
+        f"<div style='color:#8b95a8;font-size:0.9rem;margin-bottom:0.1rem;'>통합 점수 (카테고리 가중)</div>"
         f"<div style='display:flex;align-items:center;gap:0.7rem;flex-wrap:wrap;'>"
         f"<span style='font-size:2.75rem;font-weight:800;line-height:1;color:#fff;'>{score}점</span>"
         f"{_grade_pill(grade)}"
         f"</div>"
         f"<div style='color:#8b95a8;font-size:0.88rem;margin-top:0.35rem;'>등급 {escape(grade_label)}</div>"
+        f"{cat_row}"
         f"</div>",
         unsafe_allow_html=True,
     )
 
     for title, cat_key in DETAIL_SECTION_ORDER:
-        st.markdown(f"#### {title}")
+        if cat_key and cat_scores.get(cat_key) is not None:
+            st.markdown(f"#### {title} · {int(cat_scores[cat_key])}점")
+        else:
+            st.markdown(f"#### {title}")
         if cat_key is None:
             tiles = []
             for key, label in [

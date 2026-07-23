@@ -186,11 +186,36 @@ BADGE_COLOR = {
     "해당없음": "⬛",
 }
 
+# 카테고리 가중치 (합=1.0). 지표 개수와 무관하게 카테고리 단위로 반영.
+CATEGORY_WEIGHTS: dict[str, float] = {
+    "수익/성장성 check!": 0.25,
+    "안전성 check!": 0.20,
+    "효율성 check!": 0.15,
+    "B경제": 0.15,
+    "주가 현위치": 0.15,
+    "check!!": 0.10,
+}
+
+CATEGORY_LABELS: dict[str, str] = {
+    "B경제": "B경제",
+    "안전성 check!": "안전성",
+    "수익/성장성 check!": "수익/성장성",
+    "효율성 check!": "효율성",
+    "check!!": "매출−부채",
+    "주가 현위치": "주가 현위치",
+}
+
+
+def _category_score_from_avg(avg_badge: float) -> int:
+    """뱃지 평균(-2~+2) → 0~100. avg=+2→100, 0→50, -2→0."""
+    return int(max(0, min(100, round(50 + avg_badge * 25))))
+
 
 def score_row(row: pd.Series | dict[str, Any]) -> dict[str, Any]:
     badges: dict[str, str] = {}
-    total = 0
-    counted = 0
+    cat_badge_sums: dict[str, float] = {c: 0.0 for c in categories_order()}
+    cat_badge_counts: dict[str, int] = {c: 0 for c in categories_order()}
+
     for spec in FILTER_SPECS:
         val = row.get(spec.key) if hasattr(row, "get") else row[spec.key] if spec.key in row else None
         try:
@@ -200,20 +225,42 @@ def score_row(row: pd.Series | dict[str, Any]) -> dict[str, Any]:
                 val = None
         except (TypeError, ValueError):
             val = None
-        # cash_flow_match stored as ratio (1.0 = 100%); excellent is 100% in UI = 1.0 in data
-        if spec.key == "cash_flow_match" and val is not None:
-            # compare using ratio: excellent min 1.0
-            pass
         badge = badge_for_value(spec, val)
-        # Fix cash_flow_match: FilterSpec excellent_min=1.0 means 100% as ratio
         badges[spec.key] = badge
         if badge != "해당없음":
-            total += BADGE_SCORE[badge]
-            counted += 1
+            cat_badge_sums[spec.category] += BADGE_SCORE[badge]
+            cat_badge_counts[spec.category] += 1
 
-    raw = total
-    attractiveness = int(max(0, min(100, 50 + raw * 3)))
+    category_scores: dict[str, int | None] = {}
+    weighted = 0.0
+    weight_sum = 0.0
+    for cat in categories_order():
+        n = cat_badge_counts[cat]
+        if n <= 0:
+            category_scores[cat] = None
+            continue
+        avg = cat_badge_sums[cat] / n
+        cat_score = _category_score_from_avg(avg)
+        category_scores[cat] = cat_score
+        w = CATEGORY_WEIGHTS.get(cat, 0.0)
+        weighted += cat_score * w
+        weight_sum += w
+
+    attractiveness = int(round(weighted / weight_sum)) if weight_sum > 0 else 50
+    attractiveness = max(0, min(100, attractiveness))
     grade = grade_for_score(attractiveness)
+
+    # 디버그/정렬용: 가중 반영된 카테고리 평균 뱃지 점수
+    raw = 0.0
+    raw_w = 0.0
+    for cat in categories_order():
+        n = cat_badge_counts[cat]
+        if n <= 0:
+            continue
+        w = CATEGORY_WEIGHTS.get(cat, 0.0)
+        raw += (cat_badge_sums[cat] / n) * w
+        raw_w += w
+    score_raw = raw / raw_w if raw_w > 0 else 0.0
 
     counts = {k: 0 for k in BADGE_SCORE}
     for b in badges.values():
@@ -222,7 +269,8 @@ def score_row(row: pd.Series | dict[str, Any]) -> dict[str, Any]:
     return {
         "badges": badges,
         "badge_counts": counts,
-        "score_raw": raw,
+        "score_raw": score_raw,
+        "category_scores": category_scores,
         "attractiveness": attractiveness,
         "grade": grade,
     }

@@ -111,6 +111,7 @@ def attach_scores(df: pd.DataFrame) -> pd.DataFrame:
                 "score_raw": sc["score_raw"],
                 "badge_counts": sc["badge_counts"],
                 "badges": sc["badges"],
+                "category_scores": sc["category_scores"],
             }
         )
     scored = pd.DataFrame(rows)
@@ -120,6 +121,7 @@ def attach_scores(df: pd.DataFrame) -> pd.DataFrame:
     out["score_raw"] = scored["score_raw"]
     out["_badges"] = scored["badges"]
     out["_badge_counts"] = scored["badge_counts"]
+    out["_category_scores"] = scored["category_scores"]
     return out
 
 
