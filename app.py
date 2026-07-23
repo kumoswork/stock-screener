@@ -65,47 +65,34 @@ st.markdown(
       margin-top: -40px !important;
       margin-bottom: 0.55rem !important;
     }
-    /* 사이드바 접기/펼치기(<< >) 눈에 띄게 */
-    @keyframes ks-sidebar-pulse {
-      0% { box-shadow: 0 0 0 0 rgba(255, 212, 0, 0.85); transform: scale(1); }
-      55% { box-shadow: 0 0 0 10px rgba(255, 212, 0, 0); transform: scale(1.06); }
-      100% { box-shadow: 0 0 0 0 rgba(255, 212, 0, 0); transform: scale(1); }
-    }
+    /* 사이드바 접기/펼치기(<< >) 아이콘만 노란색 */
     [data-testid="stSidebarCollapseButton"] button,
     [data-testid="collapsedControl"] button,
     [data-testid="stExpandSidebarButton"] button {
-      background: #ffd400 !important;
-      border: 2px solid #f0c000 !important;
-      border-radius: 999px !important;
-      width: 2.35rem !important;
-      height: 2.35rem !important;
-      min-width: 2.35rem !important;
-      min-height: 2.35rem !important;
-      padding: 0 !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      animation: ks-sidebar-pulse 1.25s ease-out infinite !important;
-      box-shadow: 0 2px 10px rgba(255, 212, 0, 0.55) !important;
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      animation: none !important;
     }
     [data-testid="stSidebarCollapseButton"] button:hover,
     [data-testid="collapsedControl"] button:hover,
     [data-testid="stExpandSidebarButton"] button:hover {
-      background: #ffe566 !important;
-      border-color: #ffcc00 !important;
+      background: transparent !important;
     }
     [data-testid="stSidebarCollapseButton"] svg,
     [data-testid="collapsedControl"] svg,
     [data-testid="stExpandSidebarButton"] svg {
-      color: #1a1a1a !important;
-      stroke: #1a1a1a !important;
-      fill: #1a1a1a !important;
+      color: #ffd400 !important;
+      stroke: #ffd400 !important;
+      fill: #ffd400 !important;
+      width: 1.35rem !important;
+      height: 1.35rem !important;
     }
     [data-testid="stSidebarCollapseButton"] svg path,
     [data-testid="collapsedControl"] svg path,
     [data-testid="stExpandSidebarButton"] svg path {
-      fill: #1a1a1a !important;
-      stroke: #1a1a1a !important;
+      fill: #ffd400 !important;
+      stroke: #ffd400 !important;
     }
     section[data-testid="stSidebar"][aria-expanded="true"] {
         min-width: 400px !important;
