@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import sys
 from datetime import date
 from pathlib import Path
@@ -55,17 +56,6 @@ st.markdown(
     """
     <style>
     div[data-testid="stSidebarContent"] { padding-top: 0.15rem; }
-    section[data-testid="stSidebar"] div[data-testid="stImage"] {
-      margin-bottom: 0.45rem;
-      display: flex !important;
-      justify-content: center !important;
-    }
-    section[data-testid="stSidebar"] div[data-testid="stImage"] img {
-      border-radius: 4px;
-      width: 200px !important;
-      height: auto !important;
-      object-fit: contain;
-    }
     section[data-testid="stSidebar"][aria-expanded="true"] {
         min-width: 400px !important;
         max-width: 400px !important;
@@ -260,7 +250,15 @@ def _on_stock_search_change() -> None:
 _LOGO_PATH = Path(__file__).resolve().parent / "assets" / "kumo_logo.png"
 with st.sidebar:
     if _LOGO_PATH.exists():
-        st.image(str(_LOGO_PATH), width=200)
+        _logo_b64 = base64.b64encode(_LOGO_PATH.read_bytes()).decode("ascii")
+        st.markdown(
+            f'<div style="display:flex;justify-content:center;align-items:center;'
+            f'margin:0.2rem 0 0.55rem 0;">'
+            f'<img src="data:image/png;base64,{_logo_b64}" alt="KUMO$" '
+            f'width="200" style="width:200px;height:auto;border-radius:4px;" />'
+            f"</div>",
+            unsafe_allow_html=True,
+        )
     else:
         st.title("스크리너")
     ui_mode = st.radio(
