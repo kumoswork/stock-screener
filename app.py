@@ -65,34 +65,27 @@ st.markdown(
       margin-top: -40px !important;
       margin-bottom: 0.55rem !important;
     }
-    /* 사이드바 접기/펼치기(<< >) 아이콘만 노란색 */
+    /* 사이드바 << >> : Material 아이콘 글자색만 노란색 */
     [data-testid="stSidebarCollapseButton"] button,
     [data-testid="collapsedControl"] button,
-    [data-testid="stExpandSidebarButton"] button {
+    [data-testid="stExpandSidebarButton"] button,
+    [data-testid="stSidebarCollapsedControl"] button {
       background: transparent !important;
       border: none !important;
       box-shadow: none !important;
-      animation: none !important;
     }
-    [data-testid="stSidebarCollapseButton"] button:hover,
-    [data-testid="collapsedControl"] button:hover,
-    [data-testid="stExpandSidebarButton"] button:hover {
-      background: transparent !important;
-    }
-    [data-testid="stSidebarCollapseButton"] svg,
-    [data-testid="collapsedControl"] svg,
-    [data-testid="stExpandSidebarButton"] svg {
+    [data-testid="stSidebarCollapseButton"] [data-testid="stIconMaterial"],
+    [data-testid="collapsedControl"] [data-testid="stIconMaterial"],
+    [data-testid="stExpandSidebarButton"] [data-testid="stIconMaterial"],
+    [data-testid="stSidebarCollapsedControl"] [data-testid="stIconMaterial"],
+    [data-testid="stSidebarCollapseButton"] span[color],
+    [data-testid="collapsedControl"] span[color],
+    [data-testid="stExpandSidebarButton"] span[color],
+    [data-testid="stSidebarCollapsedControl"] span[color] {
       color: #ffd400 !important;
-      stroke: #ffd400 !important;
-      fill: #ffd400 !important;
-      width: 1.35rem !important;
-      height: 1.35rem !important;
-    }
-    [data-testid="stSidebarCollapseButton"] svg path,
-    [data-testid="collapsedControl"] svg path,
-    [data-testid="stExpandSidebarButton"] svg path {
-      fill: #ffd400 !important;
-      stroke: #ffd400 !important;
+      -webkit-text-fill-color: #ffd400 !important;
+      font-size: 1.45rem !important;
+      opacity: 1 !important;
     }
     section[data-testid="stSidebar"][aria-expanded="true"] {
         min-width: 400px !important;
@@ -187,6 +180,45 @@ st.markdown(
     unsafe_allow_html=True,
 )
 inject_list_detail_css()
+
+# 사이드바 << 아이콘 노란색 강제 (Material icon + emotion color attr)
+components.html(
+    """
+<script>
+(function () {
+  const doc = window.parent.document;
+  const win = window.parent;
+  const SEL = [
+    '[data-testid="stSidebarCollapseButton"] [data-testid="stIconMaterial"]',
+    '[data-testid="stSidebarCollapseButton"] span[color]',
+    '[data-testid="collapsedControl"] [data-testid="stIconMaterial"]',
+    '[data-testid="collapsedControl"] span[color]',
+    '[data-testid="stSidebarCollapsedControl"] [data-testid="stIconMaterial"]',
+    '[data-testid="stSidebarCollapsedControl"] span[color]',
+    '[data-testid="stExpandSidebarButton"] [data-testid="stIconMaterial"]',
+    '[data-testid="stExpandSidebarButton"] span[color]'
+  ].join(',');
+  let t = null;
+  function paint() {
+    doc.querySelectorAll(SEL).forEach(function (el) {
+      el.style.setProperty('color', '#ffd400', 'important');
+      el.style.setProperty('-webkit-text-fill-color', '#ffd400', 'important');
+      el.style.setProperty('opacity', '1', 'important');
+      if (el.hasAttribute('color')) el.setAttribute('color', '#ffd400');
+    });
+  }
+  function schedule() {
+    if (t) win.clearTimeout(t);
+    t = win.setTimeout(paint, 30);
+  }
+  paint();
+  new win.MutationObserver(schedule).observe(doc.body, { childList: true, subtree: true });
+})();
+</script>
+    """,
+    height=0,
+    width=0,
+)
 
 if not financials_exists():
     st.error("재무 스냅샷이 없습니다. PC에서 `python scripts/build_snapshot.py` 실행 후 push 하세요.")
