@@ -407,16 +407,17 @@ with st.sidebar:
         )
         market = market_map[market_label]
         st.caption(f"종목 {len(financials)}개 · 주가는 결과만 조회")
-        c_save, c_run = st.columns(2)
-        with c_save:
-            save_clicked = st.button("필터 저장", use_container_width=True)
-        with c_run:
-            run = st.button("스크리닝", type="primary", use_container_width=True)
         st.divider()
         render_abs_filters(filters)
         render_sidebar_filters(filters)
         # 현재 필터를 세션 백업에 유지
         backup_filters_from_session(FILTER_KEYS, ABS_KEYS)
+        st.divider()
+        c_save, c_run = st.columns(2)
+        with c_save:
+            save_clicked = st.button("필터 저장", use_container_width=True)
+        with c_run:
+            run = st.button("스크리닝", type="primary", use_container_width=True)
 
         if save_clicked or run:
             state = collect_filter_state(market_label, FILTER_KEYS, ABS_KEYS)
