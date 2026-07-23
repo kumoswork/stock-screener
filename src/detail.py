@@ -8,7 +8,7 @@ import pandas as pd
 import streamlit as st
 
 from criteria import score_row, specs_in_category
-from screener import format_cell
+from screener import format_cell, format_metric_value
 from ui_theme import GRADE_UI
 
 DETAIL_READABLE_CSS = """
@@ -143,7 +143,11 @@ def detail_dialog(stock_code: str) -> None:
             tiles.append(("현재가", _price(row.get("current_price")), "해당없음"))
             if _has(row.get("range_position")):
                 tiles.append(
-                    ("52주위치(%)", _fmt_metric("range_position", row.get("range_position")), "해당없음")
+                    (
+                        "52주위치(%)",
+                        format_metric_value("range_position", row.get("range_position")),
+                        "해당없음",
+                    )
                 )
             if _has(row.get("low_52w")):
                 tiles.append(
@@ -156,7 +160,11 @@ def detail_dialog(stock_code: str) -> None:
 
         for spec in specs_in_category(cat_key):
             tiles.append(
-                (spec.label, _fmt_metric(spec.key, row.get(spec.key)), badges.get(spec.key, "해당없음"))
+                (
+                    spec.label,
+                    format_metric_value(spec.key, row.get(spec.key)),
+                    badges.get(spec.key, "해당없음"),
+                )
             )
 
         if tiles:
@@ -240,20 +248,3 @@ def _price(v) -> str:
     if not _has(v):
         return "-"
     return f"{float(v):,.0f}"
-
-
-def _fmt_metric(key: str, v) -> str:
-    if not _has(v):
-        return "-"
-    v = float(v)
-    if key == "cash_flow_match":
-        return f"{v * 100:.1f}%" if abs(v) < 20 else f"{v:.2f}"
-    if key in (
-        "cash_survival_years",
-        "inventory_months",
-        "cash_months",
-        "inventory_turnover",
-        "receivable_turnover",
-    ):
-        return f"{v:.2f}"
-    return f"{v:.1f}"

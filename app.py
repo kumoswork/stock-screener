@@ -73,8 +73,12 @@ st.markdown(
     section[data-testid="stSidebar"] div[data-testid="stNumberInput"] {
         min-width: 0 !important;
     }
-    /* 리스트 행의 상세 버튼만 작게 */
-    div[data-testid="stAppViewContainer"] .main div[data-testid="stButton"] > button {
+    /* 리스트 상세 버튼: 조회와 같은 primary 하늘색 + 작게 */
+    div[data-testid="stAppViewContainer"] .main div[data-testid="stButton"] > button[kind="primary"],
+    div[data-testid="stAppViewContainer"] .main div[data-testid="stButton"] > button[data-testid="baseButton-primary"] {
+        background: #4c8bf5 !important;
+        color: #fff !important;
+        border: none !important;
         padding: 0.12rem 0.45rem !important;
         font-size: 0.78rem !important;
         min-height: 1.55rem !important;
@@ -116,7 +120,7 @@ try:
     )
 except Exception:
     _csv_sig = "na"
-_data_version = f"{_meta}|{_csv_sig}|ni-fix-2"
+_data_version = f"{_meta}|{_csv_sig}|ni-fix-3"
 
 # 스냅샷이 바뀌면 예전 검색결과(당기순이익 0 등) 폐기
 if st.session_state.get("_data_version") != _data_version:
@@ -326,7 +330,7 @@ if should_query or "last_result" in st.session_state:
                     with row_cols[i]:
                         n1, n2 = st.columns([3.0, 1.05])
                         n1.markdown(f"**{r['corp_name']}**")
-                        if n2.button("상세", key=f"detail_btn_{code}"):
+                        if n2.button("상세", type="primary", key=f"detail_btn_{code}"):
                             st.session_state["open_detail_code"] = code
                 elif col == "stock_code":
                     row_cols[i].write(code)

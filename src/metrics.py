@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pandas as pd
 
 from dart_api import get_db, init_db
@@ -45,6 +47,13 @@ ACCOUNT_ALIASES = {
         "당기순손실",
         "분기순이익",
     ],
+    "pretax_income": [
+        "법인세비용차감전순이익(손실)",
+        "법인세비용차감전순이익",
+        "법인세차감전순이익",
+        "법인세비용차감전계속영업순이익",
+    ],
+    "income_tax": ["법인세비용(수익)", "법인세비용", "법인세등"],
     "operating_cash_flow": [
         "영업활동현금흐름",
         "영업활동으로인한현금흐름",
@@ -58,6 +67,17 @@ ACCOUNT_ALIASES = {
 # 부분일치에 쓰기엔 너무 넓은 계정명 (exact만 사용)
 _BROAD_ALIASES = {"현금", "예치금", "수익", "영업비용"}
 
+_NUM_PREFIX_RE = re.compile(
+    r"^[\dIVXivxⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫ]+\s*[.．、)\]]\s*"
+)
+
+
+def _norm_account(name: str) -> str:
+    """'Ⅵ. 당기순이익' → '당기순이익' 처럼 번호/공백 제거."""
+    s = str(name).strip()
+    s = _NUM_PREFIX_RE.sub("", s)
+    return re.sub(r"\s+", "", s)
+
 
 def _pick_amount(df: pd.DataFrame, aliases: list[str]) -> float | None:
     """계정명 매칭. 0원 더미는 건너뛰고 비영 값을 우선."""
@@ -65,9 +85,13 @@ def _pick_amount(df: pd.DataFrame, aliases: list[str]) -> float | None:
         return None
 
     zero_hit: float | None = None
+    norms = df["account_nm"].astype(str).map(_norm_account)
 
     for name in aliases:
-        matched = df[df["account_nm"] == name]
+        target = _norm_account(name)
+        matched = df[norms == target]
+        if matched.empty:
+            matched = df[df["account_nm"] == name]
         if matched.empty:
             continue
         for amt in matched["amount"].astype(float).tolist():
@@ -76,15 +100,22 @@ def _pick_amount(df: pd.DataFrame, aliases: list[str]) -> float | None:
             zero_hit = 0.0
 
     # exact가 전부 0/없음이면 부분일치 (넓은 별칭·조정라인 제외)
-    names = df["account_nm"].astype(str)
     for name in aliases:
         if name in _BROAD_ALIASES or len(name) < 4:
             continue
-        mask = names.str.contains(name, regex=False, na=False)
+        target = _norm_account(name)
+        mask = norms.str.contains(target, regex=False, na=False)
         if not mask.any():
             continue
         sub = df.loc[mask].copy()
-        sub = sub[~sub["account_nm"].astype(str).str.contains("조정|가감|법인세", regex=True, na=False)]
+        sub_names = sub["account_nm"].astype(str)
+        sub = sub[
+            ~sub_names.str.contains(
+                "조정|가감|재분류|법인세비용차감전|법인세차감전",
+                regex=True,
+                na=False,
+            )
+        ]
         if sub.empty:
             continue
         sub["_abs"] = sub["amount"].astype(float).abs()
@@ -95,6 +126,18 @@ def _pick_amount(df: pd.DataFrame, aliases: list[str]) -> float | None:
             zero_hit = 0.0
 
     return zero_hit
+
+
+def _resolve_net_income(accounts: dict[str, float | None]) -> float | None:
+    """DART에 당기순이익=0 더미만 있을 때 세전이익−법인세비용으로 보정."""
+    ni = accounts.get("net_income")
+    pretax = accounts.get("pretax_income")
+    tax = accounts.get("income_tax")
+    if ni not in (None, 0):
+        return ni
+    if pretax is not None and tax is not None and pretax != 0:
+        return float(pretax) - float(tax)
+    return ni
 
 
 def _extract_accounts(group: pd.DataFrame) -> dict[str, float | None]:
@@ -144,7 +187,7 @@ def load_financial_metrics(bsns_year: str, prev_year: str | None = None) -> pd.D
 
         cash_total = _sum_non_null(a["cash"], a["short_term_financial"])
         revenue = a["revenue"]
-        net_income = a["net_income"]
+        net_income = _resolve_net_income(a)
         sga = a["sga"]
         sga_ratio = _pct_ratio(sga, revenue)
         prev_sga_ratio = _pct_ratio(p.get("sga"), p.get("revenue"))

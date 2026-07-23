@@ -308,9 +308,9 @@ def _format_krw_big(value) -> str:
         return "-"
     value = float(value)
     if abs(value) >= 1_0000_0000_0000:
-        return f"{value / 1_0000_0000_0000:.1f}조"
+        return f"{value / 1_0000_0000_0000:,.1f}조"
     if abs(value) >= 1_0000_0000:
-        return f"{value / 1_0000_0000:.0f}억"
+        return f"{value / 1_0000_0000:,.0f}억"
     return f"{value:,.0f}"
 
 
@@ -318,26 +318,64 @@ def format_account_krw(value) -> str:
     return _format_krw_big(value)
 
 
+PCT_FORMAT_COLS = {
+    "pct_from_low",
+    "range_position",
+    "bottom_dwell_ratio",
+    "current_ratio",
+    "quick_ratio",
+    "debt_ratio",
+    "roe",
+    "roa",
+    "operating_margin",
+    "revenue_growth",
+    "gross_margin",
+    "net_margin",
+    "sga_ratio",
+    "sga_ratio_change",
+    "cash_to_revenue",
+    "revenue_minus_debt_growth",
+    "debt_growth",
+    "happy_debt_growth",
+}
+
+
+def format_pct(value, digits: int = 1) -> str:
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return "-"
+    return f"{float(value):,.{digits}f}%"
+
+
+def format_metric_value(key: str, value) -> str:
+    """상세/리스트 공통 표시."""
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return "-"
+    if key in ("revenue", "operating_profit", "net_income", "current_price"):
+        if key == "current_price":
+            return _format_price(value)
+        return _format_krw_big(value)
+    if key == "cash_flow_match":
+        v = float(value)
+        return f"{v * 100:,.1f}%" if abs(v) < 20 else f"{v:,.2f}"
+    if key in (
+        "cash_survival_years",
+        "inventory_months",
+        "cash_months",
+        "inventory_turnover",
+        "receivable_turnover",
+    ):
+        return f"{float(value):,.2f}"
+    if key in PCT_FORMAT_COLS:
+        return format_pct(value)
+    if key == "attractiveness":
+        return f"{int(value):,}"
+    try:
+        return f"{float(value):,.1f}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
 def format_cell(row: pd.Series, col: str) -> str:
     if col not in row.index or pd.isna(row.get(col)):
         return "-"
-    if col == "current_price":
-        return _format_price(row[col])
-    if col in ("revenue", "operating_profit", "net_income"):
-        return _format_krw_big(row[col])
-    if col == "attractiveness":
-        return str(int(row[col]))
-    if col in (
-        "pct_from_low",
-        "range_position",
-        "bottom_dwell_ratio",
-        "current_ratio",
-        "quick_ratio",
-        "debt_ratio",
-        "roe",
-        "roa",
-        "operating_margin",
-        "revenue_growth",
-    ):
-        return f"{float(row[col]):.1f}"
-    return str(row[col])
+    return format_metric_value(col, row[col])
