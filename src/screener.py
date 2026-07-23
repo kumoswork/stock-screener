@@ -136,14 +136,14 @@ def _on_filter_toggle(key: str) -> None:
         return
     if spec.direction == "min" and spec.excellent_min is not None:
         val = spec.excellent_min * 100 if key == "cash_flow_match" else spec.excellent_min
-        st.session_state[f"f_{key}_min"] = float(val)
+        st.session_state[f"f_{key}_min"] = int(round(float(val)))
     elif spec.direction in ("max", "max_change") and spec.excellent_max is not None:
-        st.session_state[f"f_{key}_max"] = float(spec.excellent_max)
+        st.session_state[f"f_{key}_max"] = int(round(float(spec.excellent_max)))
     elif spec.direction == "range":
         if spec.excellent_min is not None:
-            st.session_state[f"f_{key}_min"] = float(spec.excellent_min)
+            st.session_state[f"f_{key}_min"] = int(round(float(spec.excellent_min)))
         if spec.excellent_max is not None:
-            st.session_state[f"f_{key}_max"] = float(spec.excellent_max)
+            st.session_state[f"f_{key}_max"] = int(round(float(spec.excellent_max)))
     st.session_state[f"_defaulted_{key}"] = True
 
 
@@ -157,6 +157,44 @@ def _ensure_defaults(spec) -> None:
     _on_filter_toggle(spec.key)
 
 
+def _filter_unit(spec) -> str:
+    """필터 입력 UI용 단위. 현금흐름일치도는 화면에서 %로 입력."""
+    if spec.key == "cash_flow_match":
+        return "%"
+    return spec.unit_hint or ""
+
+
+def _unit_after_label(spec, kind: str) -> str:
+    """입력칸 뒤에 붙일 문구. kind: min|max|range."""
+    unit = _filter_unit(spec)
+    if kind == "min":
+        return f"{unit} 이상".strip() if unit else "이상"
+    if kind == "max":
+        return f"{unit} 이하".strip() if unit else "이하"
+    return unit
+
+
+def _int_number_input(label: str, key: str, help_text: str | None = None) -> int:
+    import streamlit as st
+
+    kwargs = {
+        "label": label,
+        "key": key,
+        "step": 1,
+        "format": "%d",
+        "label_visibility": "collapsed",
+    }
+    if help_text:
+        kwargs["help"] = help_text
+    # 기존 세션 값이 float(100.0)이면 정수로 정규화
+    if key in st.session_state:
+        try:
+            st.session_state[key] = int(round(float(st.session_state[key])))
+        except (TypeError, ValueError):
+            pass
+    return int(st.number_input(**kwargs))
+
+
 def render_sidebar_filters(filters: dict) -> None:
     """체크박스와 이상/이하 입력을 같은 행에 배치 (사이드바 nowrap CSS 필요)."""
     import streamlit as st
@@ -165,7 +203,7 @@ def render_sidebar_filters(filters: dict) -> None:
         st.markdown(f"**{category}**")
         for spec in specs_in_category(category):
             if spec.direction == "range":
-                # 체크 | 이상값~이하값 한 줄
+                # 체크 | 값 ～ 값 %
                 left, right = st.columns([1.35, 1.65])
                 with left:
                     st.checkbox(
@@ -178,23 +216,17 @@ def render_sidebar_filters(filters: dict) -> None:
                 with right:
                     if st.session_state.get(f"f_{spec.key}"):
                         _ensure_defaults(spec)
-                        a, b, c = st.columns([1.0, 1.0, 1.0])
+                        unit = _unit_after_label(spec, "range")
+                        a, b, c, d = st.columns([1.0, 0.35, 1.0, 0.7])
                         with a:
-                            lo = st.number_input(
-                                "이상",
-                                key=f"f_{spec.key}_min",
-                                label_visibility="collapsed",
-                                help="이상",
-                            )
+                            lo = _int_number_input("이상", f"f_{spec.key}_min", "이상")
                         with b:
                             st.caption("～")
                         with c:
-                            hi = st.number_input(
-                                "이하",
-                                key=f"f_{spec.key}_max",
-                                label_visibility="collapsed",
-                                help="이하",
-                            )
+                            hi = _int_number_input("이하", f"f_{spec.key}_max", "이하")
+                        with d:
+                            if unit:
+                                st.caption(unit)
                         filters[spec.key] = (lo, hi)
             else:
                 left, right = st.columns([1.5, 1.5])
@@ -209,25 +241,18 @@ def render_sidebar_filters(filters: dict) -> None:
                 with right:
                     if st.session_state.get(f"f_{spec.key}"):
                         _ensure_defaults(spec)
-                        tag = "이상" if spec.direction == "min" else "이하"
-                        t, n = st.columns([0.7, 1.3])
-                        with t:
-                            st.caption(tag)
+                        kind = "min" if spec.direction == "min" else "max"
+                        suffix = _unit_after_label(spec, kind)
+                        n, t = st.columns([1.15, 1.05])
                         with n:
                             if spec.direction == "min":
-                                lo = st.number_input(
-                                    "min",
-                                    key=f"f_{spec.key}_min",
-                                    label_visibility="collapsed",
-                                )
+                                lo = _int_number_input("min", f"f_{spec.key}_min")
                                 filters[spec.key] = (lo, None)
                             else:
-                                hi = st.number_input(
-                                    "max",
-                                    key=f"f_{spec.key}_max",
-                                    label_visibility="collapsed",
-                                )
+                                hi = _int_number_input("max", f"f_{spec.key}_max")
                                 filters[spec.key] = (None, hi)
+                        with t:
+                            st.caption(suffix)
         st.divider()
 
 
@@ -241,11 +266,9 @@ def render_abs_filters(filters: dict) -> None:
             st.checkbox(label, key=f"abs_{key}")
         with right:
             if st.session_state.get(f"abs_{key}"):
-                t, n, u = st.columns([0.55, 1.0, 1.0])
-                with t:
-                    st.caption("이상")
+                n, u, t = st.columns([1.0, 1.0, 0.7])
                 with n:
-                    lo = st.number_input("lo", key=f"abs_{key}_lo", label_visibility="collapsed")
+                    lo = _int_number_input("lo", f"abs_{key}_lo")
                 with u:
                     unit = st.selectbox(
                         "단위",
@@ -253,6 +276,8 @@ def render_abs_filters(filters: dict) -> None:
                         key=f"abs_{key}_unit",
                         label_visibility="collapsed",
                     )
+                with t:
+                    st.caption("이상")
                 mult = 1e8 if unit == "억원" else 1e12
                 filters[key] = (lo * mult if lo else None, None)
     st.divider()
