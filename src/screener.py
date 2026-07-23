@@ -354,6 +354,8 @@ def format_metric_value(key: str, value) -> str:
         if key == "current_price":
             return _format_price(value)
         return _format_krw_big(value)
+    if key in ("sga_ratio_change", "revenue_minus_debt_growth", "debt_growth", "happy_debt_growth"):
+        return f"{float(value):,.1f}%p"
     if key == "cash_flow_match":
         v = float(value)
         return f"{v * 100:,.1f}%" if abs(v) < 20 else f"{v:,.2f}"

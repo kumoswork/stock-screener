@@ -158,6 +158,16 @@ def detail_dialog(stock_code: str) -> None:
                     )
                 )
 
+        # B경제: 판관비율(절대)도 함께 표시 — 전년대비와 혼동 방지
+        if cat_key == "B경제" and _has(row.get("sga_ratio")):
+            tiles.append(
+                (
+                    "판관비율(판관비÷매출)",
+                    format_metric_value("sga_ratio", row.get("sga_ratio")),
+                    "해당없음",
+                )
+            )
+
         for spec in specs_in_category(cat_key):
             tiles.append(
                 (
