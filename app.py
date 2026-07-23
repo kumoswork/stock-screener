@@ -22,6 +22,7 @@ from filter_store import (  # noqa: E402
 from price import fetch_price_metrics  # noqa: E402
 from screener import (  # noqa: E402
     LIST_COLUMNS,
+    LIST_WIDTHS,
     SORT_LABELS,
     all_filter_keys,
     apply_range_filters,
@@ -38,7 +39,7 @@ from snapshot import (  # noqa: E402
     financials_meta,
     load_financials,
 )
-from ui_theme import inject_list_detail_css, render_result_table  # noqa: E402
+from ui_theme import grade_badge_html, inject_list_detail_css  # noqa: E402
 
 st.set_page_config(
     page_title="국내주식 스크리너",
@@ -71,6 +72,13 @@ st.markdown(
     }
     section[data-testid="stSidebar"] div[data-testid="stNumberInput"] {
         min-width: 0 !important;
+    }
+    /* 리스트 행의 상세 버튼만 작게 */
+    div[data-testid="stAppViewContainer"] .main div[data-testid="stButton"] > button {
+        padding: 0.12rem 0.45rem !important;
+        font-size: 0.78rem !important;
+        min-height: 1.55rem !important;
+        line-height: 1.2 !important;
     }
     </style>
     """,
@@ -269,31 +277,62 @@ if should_query or "last_result" in st.session_state:
         st.info("조건에 맞는 종목이 없습니다.")
     else:
         show = filtered.head(200)
-        st.markdown(
-            f'<div class="ks-status">조건 충족 {len(filtered)}개'
-            + (f" · 상위 200개 표시" if len(filtered) > 200 else "")
-            + "</div>",
-            unsafe_allow_html=True,
+        st.caption(
+            f"조건 충족 {len(filtered)}개"
+            + (" · 상위 200개 표시" if len(filtered) > 200 else "")
         )
-        cols = [c for c in LIST_COLUMNS if c in show.columns]
+
+        display_cols = [c for c in LIST_COLUMNS if c in show.columns]
+        widths = list(LIST_WIDTHS[: len(display_cols)])
+        while len(widths) < len(display_cols):
+            widths.append(1.0)
+        # 종목명+상세 버튼 공간
+        if display_cols and display_cols[0] == "corp_name":
+            widths[0] = 2.35
+
+        header = st.columns(widths)
+        for i, col in enumerate(display_cols):
+            header[i].markdown(f"**{SORT_LABELS.get(col, col)}**")
+
         st.markdown(
-            render_result_table(show, cols, SORT_LABELS, format_cell),
+            "<hr style='margin:0.3rem 0 0.45rem 0; border:none; border-top:1px solid #c8c8c8;'>",
             unsafe_allow_html=True,
         )
 
-        detail_opts = [
-            f"{r['corp_name']} ({str(r['stock_code']).zfill(6)})" for _, r in show.iterrows()
-        ]
-        d1, d2 = st.columns([4.2, 1.0])
-        with d1:
-            pick = st.selectbox("상세 볼 종목", ["—"] + detail_opts, key="detail_pick")
-        with d2:
-            st.write("")
-            open_btn = st.button("상세보기", type="primary", use_container_width=True)
+        for _, r in show.iterrows():
+            code = str(r["stock_code"]).zfill(6)
+            row_cols = st.columns(widths)
+            for i, col in enumerate(display_cols):
+                if col == "corp_name":
+                    with row_cols[i]:
+                        n1, n2 = st.columns([3.0, 1.05])
+                        n1.markdown(f"**{r['corp_name']}**")
+                        if n2.button("상세", key=f"detail_btn_{code}"):
+                            st.session_state["open_detail_code"] = code
+                elif col == "stock_code":
+                    row_cols[i].write(code)
+                elif col == "market":
+                    m = r.get("market", "")
+                    label = {"KOSPI": "코스피", "KOSDAQ": "코스닥"}.get(
+                        str(m), str(m) if pd.notna(m) else "-"
+                    )
+                    row_cols[i].write(label)
+                elif col == "grade":
+                    row_cols[i].markdown(
+                        grade_badge_html(str(r.get("grade", ""))),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    row_cols[i].write(format_cell(r, col))
 
-        if open_btn and pick != "—":
-            code = pick.rsplit("(", 1)[-1].rstrip(")")
-            hit = filtered[filtered["stock_code"].astype(str).str.zfill(6) == code.zfill(6)]
+            st.markdown(
+                "<hr style='margin:0.15rem 0; border:none; border-top:1px solid #e6e6e6;'>",
+                unsafe_allow_html=True,
+            )
+
+        open_code = st.session_state.pop("open_detail_code", None)
+        if open_code:
+            hit = filtered[filtered["stock_code"].astype(str).str.zfill(6) == open_code]
             if not hit.empty:
                 open_detail_for_row(hit.iloc[0])
 
