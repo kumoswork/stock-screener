@@ -55,7 +55,14 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    div[data-testid="stSidebarContent"] { padding-top: 0.15rem; }
+    div[data-testid="stSidebarContent"] { padding-top: 0 !important; }
+    section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {
+      padding-top: 0.15rem !important;
+    }
+    #ks-sidebar-logo {
+      margin-top: -40px !important;
+      margin-bottom: 0.55rem !important;
+    }
     section[data-testid="stSidebar"][aria-expanded="true"] {
         min-width: 400px !important;
         max-width: 400px !important;
@@ -252,8 +259,8 @@ with st.sidebar:
     if _LOGO_PATH.exists():
         _logo_b64 = base64.b64encode(_LOGO_PATH.read_bytes()).decode("ascii")
         st.markdown(
-            f'<div style="display:flex;justify-content:center;align-items:center;'
-            f'margin:0.2rem 0 0.55rem 0;">'
+            f'<div id="ks-sidebar-logo" style="display:flex;justify-content:center;'
+            f'align-items:center;margin:-40px 0 0.55rem 0;">'
             f'<img src="data:image/png;base64,{_logo_b64}" alt="KUMO$" '
             f'width="200" style="width:200px;height:auto;border-radius:4px;" />'
             f"</div>",
