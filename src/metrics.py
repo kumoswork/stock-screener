@@ -7,36 +7,60 @@ import pandas as pd
 from dart_api import get_db, init_db
 
 ACCOUNT_ALIASES = {
+    # 엑셀 계정 매핑 기준 + DART 표기 변형
     "current_assets": ["유동자산"],
-    "current_liabilities": ["유동부채"],
+    "cash": ["현금및현금성자산", "현금 및 현금성 자산", "현금", "예치금"],
+    "short_term_financial": [
+        "단기금융상품",
+        "단기투자자산",
+        "단기금융자산",
+        "유동금융자산",
+        "당기손익-공정가치측정금융자산",  # JYP 등
+        "당기손익-공정가치금융자산",
+    ],
+    "receivables": ["매출채권", "매출채권및기타채권", "매출채권 및 기타유동채권"],
     "inventory": ["재고자산"],
-    "total_liabilities": ["부채총계"],
-    "total_equity": ["자본총계", "자본총계(지배기업 소유주지분)"],
-    "total_assets": ["자산총계"],
-    "revenue": ["매출액", "수익(매출액)"],
-    "cogs": ["매출원가", "매출원가 및 용역원가"],
+    "total_assets": ["자산총계", "자산합계"],
+    "current_liabilities": ["유동부채"],
+    "total_liabilities": ["부채총계", "부채합계"],
+    "total_equity": ["자본총계", "자본합계", "자본총계(지배기업 소유주지분)"],
+    "advances": ["선수금", "선수수익", "예수금", "계약부채"],  # 행복한 부채
+    "revenue": ["매출액", "영업수익", "수익(매출액)", "수익"],
+    "cogs": ["매출원가", "영업원가", "매출원가 및 용역원가"],
     "gross_profit": ["매출총이익"],
-    "operating_profit": ["영업이익", "영업이익(손실)"],
-    # 강원랜드 등: 계정명 '당기순이익'=0 이고 실제는 지배지분 귀속 항목에 있음
+    "sga": [
+        "판매비와관리비",
+        "영업비용",
+        "판매비와관리비(일반)",
+        "판매비와관리비 및 기타판매비와관리비",
+    ],
+    "operating_profit": ["영업이익", "영업손실", "영업이익(손실)"],
+    # 강원랜드 등: '당기순이익'=0 더미 → 지배지분 귀속 우선
     "net_income": [
         "지배기업의소유주에게귀속되는당기순이익(손실)",
         "지배기업의 소유주에게 귀속되는 당기순이익(손실)",
         "당기순이익(손실)",
         "연결당기순이익",
         "당기순이익",
+        "당기순손실",
         "분기순이익",
     ],
-    "cash": ["현금및현금성자산", "현금 및 현금성 자산"],
-    "short_term_financial": ["단기금융상품", "단기금융자산", "단기투자자산"],
-    "receivables": ["매출채권", "매출채권 및 기타유동채권"],
-    "operating_cash_flow": ["영업활동현금흐름", "영업활동으로인한현금흐름"],
-    "advances": ["선수금", "선수수익", "계약부채"],
-    "sga": ["판매비와관리비", "판매비와관리비(일반)", "판매비와관리비 및 기타판매비와관리비"],
+    "operating_cash_flow": [
+        "영업활동현금흐름",
+        "영업활동으로인한현금흐름",
+        "영업활동에서의현금흐름",
+        "영업활동으로부터창출된현금흐름",  # 금양그린파워 등
+    ],
+    "capex": ["유형자산의취득", "유형자산의증가"],
+    "dividends_paid": ["배당금의지급", "배당금지급"],
 }
+
+# 부분일치에 쓰기엔 너무 넓은 계정명 (exact만 사용)
+_BROAD_ALIASES = {"현금", "예치금", "수익", "영업비용"}
 
 
 def _pick_amount(df: pd.DataFrame, aliases: list[str]) -> float | None:
-    """계정명 매칭. 같은 이름의 0원 더미가 있으면 건너뛰고 비영 값을 우선."""
+    """계정명 매칭. 0원 더미는 건너뛰고 비영 값을 우선."""
     if df.empty or not aliases:
         return None
 
@@ -51,9 +75,11 @@ def _pick_amount(df: pd.DataFrame, aliases: list[str]) -> float | None:
                 return float(amt)
             zero_hit = 0.0
 
-    # exact가 전부 0/없음이면 부분일치 (조정·가감·법인세 라인 제외)
+    # exact가 전부 0/없음이면 부분일치 (넓은 별칭·조정라인 제외)
     names = df["account_nm"].astype(str)
     for name in aliases:
+        if name in _BROAD_ALIASES or len(name) < 4:
+            continue
         mask = names.str.contains(name, regex=False, na=False)
         if not mask.any():
             continue
@@ -183,6 +209,8 @@ def load_financial_metrics(bsns_year: str, prev_year: str | None = None) -> pd.D
             "gross_profit": gross_profit,
             "sga": sga,
             "operating_cash_flow": a["operating_cash_flow"],
+            "capex": a.get("capex"),
+            "dividends_paid": a.get("dividends_paid"),
         }
         rows.append(metrics)
 
