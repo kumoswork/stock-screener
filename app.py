@@ -274,6 +274,7 @@ with st.sidebar:
         horizontal=True,
         key="ui_mode",
         on_change=_on_ui_mode_change,
+        label_visibility="collapsed",
     )
     st.caption(financials_basis_caption())
 
