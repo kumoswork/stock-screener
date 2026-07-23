@@ -8,7 +8,7 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
-from criteria import categories_order, score_row, specs_in_category
+from criteria import score_row, specs_in_category
 from screener import format_account_krw, format_cell
 from ui_theme import GRADE_UI, grade_badge_html, status_html
 
