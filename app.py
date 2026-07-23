@@ -168,37 +168,6 @@ st.markdown(
         min-height: 1.55rem !important;
         line-height: 1.2 !important;
     }
-    /* 사이드바 스크롤 영역 */
-    section[data-testid="stSidebar"] [data-testid="stSidebarContent"] {
-      overflow-x: hidden !important;
-      overflow-y: auto !important;
-    }
-    /* 필터 저장/스크리닝: 사이드바 하단 sticky (잘림 없이) */
-    #ks-filter-actions { display: none; }
-    section[data-testid="stSidebar"]
-      div[data-testid="stHorizontalBlock"]:has(button[kind="secondary"]):has(button[kind="primary"]),
-    section[data-testid="stSidebar"]
-      div[data-testid="stElementContainer"]:has(#ks-filter-actions)
-      + div[data-testid="stElementContainer"],
-    section[data-testid="stSidebar"]
-      div[data-testid="element-container"]:has(#ks-filter-actions)
-      + div[data-testid="element-container"] {
-        position: sticky !important;
-        bottom: 0 !important;
-        z-index: 1000001 !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        margin: 0 !important;
-        padding: 0.7rem 0.15rem 0.85rem 0.15rem !important;
-        background: #0e1117 !important;
-        border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
-        box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.45) !important;
-        box-sizing: border-box !important;
-    }
-    section[data-testid="stSidebar"]:has(#ks-filter-actions)
-      [data-testid="stSidebarUserContent"] {
-        padding-bottom: 5.5rem !important;
-    }
     /* 모바일 */
     @media (max-width: 768px) {
       section[data-testid="stSidebar"][aria-expanded="true"] {
@@ -406,17 +375,16 @@ with st.sidebar:
         )
         market = market_map[market_label]
         st.caption(f"종목 {len(financials)}개 · 주가는 결과만 조회")
-        st.divider()
-        render_abs_filters(filters)
-        render_sidebar_filters(filters)
-        # 현재 필터를 세션 백업에 유지
-        backup_filters_from_session(FILTER_KEYS, ABS_KEYS)
-        st.markdown('<div id="ks-filter-actions"></div>', unsafe_allow_html=True)
         c_save, c_run = st.columns(2)
         with c_save:
             save_clicked = st.button("필터 저장", use_container_width=True)
         with c_run:
             run = st.button("스크리닝", type="primary", use_container_width=True)
+        st.divider()
+        render_abs_filters(filters)
+        render_sidebar_filters(filters)
+        # 현재 필터를 세션 백업에 유지
+        backup_filters_from_session(FILTER_KEYS, ABS_KEYS)
 
         if save_clicked or run:
             state = collect_filter_state(market_label, FILTER_KEYS, ABS_KEYS)
