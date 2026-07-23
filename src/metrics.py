@@ -17,7 +17,15 @@ ACCOUNT_ALIASES = {
     "cogs": ["매출원가", "매출원가 및 용역원가"],
     "gross_profit": ["매출총이익"],
     "operating_profit": ["영업이익", "영업이익(손실)"],
-    "net_income": ["당기순이익", "당기순이익(손실)", "분기순이익"],
+    # 강원랜드 등: 계정명 '당기순이익'=0 이고 실제는 지배지분 귀속 항목에 있음
+    "net_income": [
+        "지배기업의소유주에게귀속되는당기순이익(손실)",
+        "지배기업의 소유주에게 귀속되는 당기순이익(손실)",
+        "당기순이익(손실)",
+        "연결당기순이익",
+        "당기순이익",
+        "분기순이익",
+    ],
     "cash": ["현금및현금성자산", "현금 및 현금성 자산"],
     "short_term_financial": ["단기금융상품", "단기금융자산", "단기투자자산"],
     "receivables": ["매출채권", "매출채권 및 기타유동채권"],
@@ -28,13 +36,39 @@ ACCOUNT_ALIASES = {
 
 
 def _pick_amount(df: pd.DataFrame, aliases: list[str]) -> float | None:
+    """계정명 매칭. 같은 이름의 0원 더미가 있으면 건너뛰고 비영 값을 우선."""
     if df.empty or not aliases:
         return None
+
+    zero_hit: float | None = None
+
     for name in aliases:
         matched = df[df["account_nm"] == name]
-        if not matched.empty:
-            return float(matched.iloc[0]["amount"])
-    return None
+        if matched.empty:
+            continue
+        for amt in matched["amount"].astype(float).tolist():
+            if amt != 0:
+                return float(amt)
+            zero_hit = 0.0
+
+    # exact가 전부 0/없음이면 부분일치 (조정·가감·법인세 라인 제외)
+    names = df["account_nm"].astype(str)
+    for name in aliases:
+        mask = names.str.contains(name, regex=False, na=False)
+        if not mask.any():
+            continue
+        sub = df.loc[mask].copy()
+        sub = sub[~sub["account_nm"].astype(str).str.contains("조정|가감|법인세", regex=True, na=False)]
+        if sub.empty:
+            continue
+        sub["_abs"] = sub["amount"].astype(float).abs()
+        sub = sub.sort_values("_abs", ascending=False)
+        for amt in sub["amount"].astype(float).tolist():
+            if amt != 0:
+                return float(amt)
+            zero_hit = 0.0
+
+    return zero_hit
 
 
 def _extract_accounts(group: pd.DataFrame) -> dict[str, float | None]:
