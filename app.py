@@ -682,8 +682,9 @@ if should_query or (not fav_mode and "last_result" in st.session_state):
             )
             if (not search_mode) and (price_cache_df is None or price_cache_df.empty):
                 st.warning(
-                    "주가 캐시가 없습니다. PC에서 "
-                    "`python scripts/build_price_cache.py` 실행 후 push 하세요."
+                    "주가 캐시가 아직 없습니다. "
+                    "GitHub Actions가 매일 자동 수집하거나, "
+                    "로컬에서 `python scripts/build_price_cache.py` 후 push 하세요."
                 )
             merged = merge_financial_and_price(candidates, prices)
             if search_mode or fav_mode:

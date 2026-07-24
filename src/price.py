@@ -319,7 +319,7 @@ def price_cache_caption() -> str:
 
     meta = price_cache_meta()
     if "주가 캐시 없음" in meta:
-        return "주가 캐시 없음 · scripts/build_price_cache.py 실행 후 push"
+        return "주가 캐시 없음 · 자동수집(매일) 대기 또는 로컬 빌드 필요"
     m = re.search(r"updated_at=([^\n]+)", meta)
     n = re.search(r"rows=(\d+)", meta)
     when = (m.group(1)[:10] if m else "")
