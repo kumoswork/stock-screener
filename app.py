@@ -66,7 +66,7 @@ st.markdown(
       margin-top: -40px !important;
       margin-bottom: 0.55rem !important;
     }
-    /* 사이드바 토글: 옷택(filter) */
+    /* 사이드바 토글: 옷택(close/open) */
     [data-testid="stSidebarCollapseButton"] button,
     button[data-testid="stExpandSidebarButton"],
     [data-testid="collapsedControl"] button,
@@ -96,11 +96,8 @@ st.markdown(
       opacity: 0 !important;
       color: transparent !important;
     }
-    [data-testid="stSidebarCollapseButton"] button::after,
-    button[data-testid="stExpandSidebarButton"]::after,
-    [data-testid="collapsedControl"] button::after,
-    [data-testid="stSidebarCollapsedControl"] button::after {
-      content: "filter";
+    [data-testid="stSidebarCollapseButton"] button::after {
+      content: "close";
       display: inline-block !important;
       box-sizing: border-box !important;
       background: #ffd400 !important;
@@ -116,16 +113,30 @@ st.markdown(
       box-shadow: 0 1px 4px rgba(0,0,0,0.35) !important;
       border: 1px solid #e6be00 !important;
     }
+    button[data-testid="stExpandSidebarButton"]::after,
+    [data-testid="collapsedControl"] button::after,
+    [data-testid="stSidebarCollapsedControl"] button::after {
+      content: "open";
+      display: inline-block !important;
+      box-sizing: border-box !important;
+      background: #ffd400 !important;
+      background-image: radial-gradient(circle at 8px 50%, #0e1117 3.2px, transparent 3.5px) !important;
+      color: #1a1a1a !important;
+      font-size: 0.78rem !important;
+      font-weight: 800 !important;
+      letter-spacing: 0.04em !important;
+      line-height: 1 !important;
+      text-transform: lowercase !important;
+      padding: 0.58rem 0.72rem 0.58rem 1.12rem !important;
+      border-radius: 3px 8px 8px 3px !important;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.35) !important;
+      border: 1px solid #e6be00 !important;
+    }
     /* 닫힌 뒤 펼치기 택이 헤더에 가려지지 않게 */
     button[data-testid="stExpandSidebarButton"],
     [data-testid="stSidebarCollapsedControl"] {
       z-index: 1000002 !important;
       position: relative !important;
-    }
-    button[data-testid="stExpandSidebarButton"]::after,
-    [data-testid="stSidebarCollapsedControl"] button::after {
-      padding: 0.58rem 0.72rem 0.58rem 1.12rem !important;
-      font-size: 0.78rem !important;
     }
     a.ks-tv-link {
       color: inherit !important;
