@@ -15,6 +15,15 @@ import streamlit.components.v1 as components
 SRC_DIR = Path(__file__).resolve().parent / "src"
 sys.path.insert(0, str(SRC_DIR))
 
+from detail import open_detail_for_row  # noqa: E402
+from favorites import (  # noqa: E402
+    bootstrap_favorites_from_query,
+    favorites_sorted,
+    is_favorite,
+    localstorage_bootstrap_js,
+    localstorage_persist_js,
+    toggle_favorite,
+)
 from filter_store import (  # noqa: E402
     backup_filters_from_session,
     collect_filter_state,
@@ -23,7 +32,12 @@ from filter_store import (  # noqa: E402
     restore_filters_to_session,
     seed_session_from_saved,
 )
-from price import fetch_price_metrics  # noqa: E402
+from price import (  # noqa: E402
+    fetch_price_metrics,
+    load_price_metrics,
+    price_cache_caption,
+    price_cache_meta,
+)
 from screener import (  # noqa: E402
     LIST_COLUMNS,
     LIST_WIDTHS,
@@ -45,7 +59,6 @@ from snapshot import (  # noqa: E402
 )
 from tv import tradingview_chart_url  # noqa: E402
 from ui_theme import grade_badge_html, inject_list_detail_css  # noqa: E402
-from detail import open_detail_for_row  # noqa: E402
 
 st.set_page_config(
     page_title="국내주식 스크리너",
@@ -325,6 +338,11 @@ def get_financials(_version: str):
     return load_financials()
 
 
+@st.cache_data
+def get_price_cache(_version: str) -> pd.DataFrame:
+    return load_price_metrics()
+
+
 _meta = financials_meta()
 try:
     from snapshot import FINANCIALS_PATH
@@ -336,16 +354,29 @@ try:
     )
 except Exception:
     _csv_sig = "na"
-_data_version = f"{_meta}|{_csv_sig}|sticky-head-2"
+_price_meta = price_cache_meta()
+try:
+    _price_path = Path(__file__).resolve().parent / "data" / "price_cache.csv"
+    _price_sig = (
+        f"{_price_path.stat().st_mtime_ns}:{_price_path.stat().st_size}"
+        if _price_path.exists()
+        else "none"
+    )
+except Exception:
+    _price_sig = "na"
+_data_version = f"{_meta}|{_csv_sig}|{_price_sig}|price-cache-fav-1"
 
 # 스냅샷이 바뀌면 예전 검색결과(당기순이익 0 등) 폐기
 if st.session_state.get("_data_version") != _data_version:
     get_financials.clear()
+    get_price_cache.clear()
     st.session_state.pop("last_result", None)
     st.session_state.pop("last_candidate_count", None)
+    st.session_state.pop("price_cache", None)
     st.session_state["_data_version"] = _data_version
 
 financials = get_financials(_data_version)
+price_cache_df = get_price_cache(_data_version)
 ABS_KEYS = ["revenue", "operating_profit", "net_income"]
 FILTER_KEYS = all_filter_keys()
 
@@ -365,6 +396,29 @@ if "price_cache" not in st.session_state:
     st.session_state["price_cache"] = {}
 if "price_cache_date" not in st.session_state:
     st.session_state["price_cache_date"] = ""
+
+
+def prices_from_bundle(
+    codes: list[str],
+    name_map: dict[str, str],
+    market_map: dict[str, str] | None = None,
+    *,
+    allow_live: bool = False,
+) -> pd.DataFrame:
+    """기본은 디스크 주가 캐시. 종목검색 1건 등만 실시간 보강."""
+    codes = [str(c).zfill(6) for c in codes]
+    if price_cache_df is not None and not price_cache_df.empty:
+        hit = price_cache_df[price_cache_df["stock_code"].isin(codes)].copy()
+    else:
+        hit = pd.DataFrame()
+
+    have = set(hit["stock_code"].astype(str).str.zfill(6)) if not hit.empty else set()
+    missing = [c for c in codes if c not in have]
+    if missing and allow_live:
+        live = fetch_prices_for_codes(missing, name_map, market_map)
+        if live is not None and not live.empty:
+            hit = pd.concat([hit, live], ignore_index=True) if not hit.empty else live
+    return hit if hit is not None else pd.DataFrame()
 
 
 def cached_prices_df(codes: list[str]) -> pd.DataFrame:
@@ -433,6 +487,9 @@ def _on_stock_search_change() -> None:
 
 
 # ---------- Sidebar ----------
+bootstrap_favorites_from_query(st)
+components.html(localstorage_bootstrap_js(), height=0, width=0)
+
 _LOGO_PATH = Path(__file__).resolve().parent / "assets" / "kumo_logo.png"
 with st.sidebar:
     if _LOGO_PATH.exists():
@@ -449,13 +506,14 @@ with st.sidebar:
         st.title("스크리너")
     ui_mode = st.radio(
         "검색 방식",
-        ["종목 검색", "필터 검색"],
+        ["종목 검색", "필터 검색", "즐겨찾기"],
         horizontal=True,
         key="ui_mode",
         on_change=_on_ui_mode_change,
         label_visibility="collapsed",
     )
     st.caption(financials_basis_caption())
+    st.caption(price_cache_caption())
 
     filters: dict = {}
     search_choice = "종목을 선택하세요"
@@ -463,6 +521,7 @@ with st.sidebar:
     market_map = {"전체": "ALL", "코스피": "KOSPI", "코스닥": "KOSDAQ"}
     run = False
     save_clicked = False
+    market = "ALL"
 
     if ui_mode == "종목 검색":
         search_choice = st.selectbox(
@@ -473,8 +532,16 @@ with st.sidebar:
             on_change=_on_stock_search_change,
         )
         run = st.button("조회", type="primary", use_container_width=True)
+        if run:
+            st.session_state["_collapse_sidebar_mobile"] = True
         if st.session_state.pop("_auto_run_stock", False):
             run = True
+            st.session_state["_collapse_sidebar_mobile"] = True
+        market = "ALL"
+    elif ui_mode == "즐겨찾기":
+        fav_n = len(favorites_sorted(st))
+        st.caption(f"별표 종목 {fav_n}개 · 이 브라우저에만 저장")
+        run = True
         market = "ALL"
     else:
         # 종목검색 → 필터검색 복귀 시에만 위젯 키 복원 (매 렌더 복원 시 입력 덮어씀)
@@ -487,7 +554,7 @@ with st.sidebar:
             key="market_radio",
         )
         market = market_map[market_label]
-        st.caption(f"종목 {len(financials)}개 · 주가는 결과만 조회")
+        st.caption(f"종목 {len(financials)}개 · 주가는 캐시 사용")
         st.divider()
         render_abs_filters(filters)
         render_sidebar_filters(filters)
@@ -499,6 +566,8 @@ with st.sidebar:
             save_clicked = st.button("필터 저장", use_container_width=True)
         with c_run:
             run = st.button("스크리닝", type="primary", use_container_width=True)
+            if run:
+                st.session_state["_collapse_sidebar_mobile"] = True
 
         if save_clicked or run:
             state = collect_filter_state(market_label, FILTER_KEYS, ABS_KEYS)
@@ -508,7 +577,7 @@ with st.sidebar:
                 st.toast(f"필터 저장됨 ({where})")
 
 # 모바일: 조회/스크리닝 후 사이드바 자동 닫기
-if run:
+if st.session_state.pop("_collapse_sidebar_mobile", False):
     components.html(
         """
 <script>
@@ -539,12 +608,14 @@ if run:
 # ---------- Main ----------
 st.title("국내 상장주 스크리너")
 st.caption(financials_basis_caption())
+st.caption(price_cache_caption())
 
 view = financials.copy()
 if market != "ALL" and "market" in view.columns:
     view = view[view["market"] == market].copy()
 
 search_mode = ui_mode == "종목 검색"
+fav_mode = ui_mode == "즐겨찾기"
 stock_picked = search_mode and search_choice != "종목을 선택하세요"
 fin_filters, price_filters = split_filters(filters)
 
@@ -553,7 +624,7 @@ if search_mode and run and not stock_picked:
     st.warning("종목을 선택하세요.")
     should_query = False
 
-if should_query or "last_result" in st.session_state:
+if should_query or (not fav_mode and "last_result" in st.session_state):
     if should_query:
         if search_mode:
             code = search_choice.rsplit("(", 1)[-1].rstrip(")")
@@ -561,31 +632,43 @@ if should_query or "last_result" in st.session_state:
             if candidates.empty:
                 name = search_choice.rsplit(" (", 1)[0]
                 candidates = view[view["corp_name"].astype(str) == name].copy()
+        elif fav_mode:
+            fav_codes = favorites_sorted(st)
+            candidates = view[view["stock_code"].astype(str).str.zfill(6).isin(fav_codes)].copy()
         else:
             candidates = apply_range_filters(view, fin_filters)
 
-        MAX_PRICE_FETCH = 300
         if candidates.empty:
             filtered = candidates
         else:
-            fetch_df = candidates.head(MAX_PRICE_FETCH)
-            if len(candidates) > MAX_PRICE_FETCH:
-                st.warning(f"통과 {len(candidates)}종목 → 주가는 상위 {MAX_PRICE_FETCH}개만 조회")
-            codes = fetch_df["stock_code"].astype(str).str.zfill(6).tolist()
-            name_map = dict(zip(codes, fetch_df["corp_name"]))
+            codes = candidates["stock_code"].astype(str).str.zfill(6).tolist()
+            name_map = dict(zip(codes, candidates["corp_name"]))
             market_map = None
-            if "market" in fetch_df.columns:
+            if "market" in candidates.columns:
                 market_map = dict(
-                    zip(codes, fetch_df["market"].astype(str).fillna("").tolist())
+                    zip(codes, candidates["market"].astype(str).fillna("").tolist())
                 )
-            prices = fetch_prices_for_codes(codes, name_map, market_map)
-            merged = merge_financial_and_price(fetch_df, prices)
-            if search_mode:
+            # 필터/즐겨찾기: 캐시만. 종목검색: 캐시 우선 + 없으면 실시간 1건
+            prices = prices_from_bundle(
+                codes,
+                name_map,
+                market_map,
+                allow_live=search_mode,
+            )
+            if (not search_mode) and (price_cache_df is None or price_cache_df.empty):
+                st.warning(
+                    "주가 캐시가 없습니다. PC에서 "
+                    "`python scripts/build_price_cache.py` 실행 후 push 하세요."
+                )
+            merged = merge_financial_and_price(candidates, prices)
+            if search_mode or fav_mode:
                 filtered = merged
             else:
                 filtered = apply_range_filters(merged, price_filters)
             filtered = attach_scores(filtered)
-            filtered = filtered.sort_values("attractiveness", ascending=False, na_position="last")
+            filtered = filtered.sort_values(
+                "attractiveness", ascending=False, na_position="last"
+            )
 
         st.session_state["last_result"] = filtered
         st.session_state["last_candidate_count"] = len(candidates)
@@ -593,13 +676,19 @@ if should_query or "last_result" in st.session_state:
         filtered = st.session_state["last_result"]
 
     if filtered.empty:
-        st.info("조건에 맞는 종목이 없습니다.")
+        if fav_mode:
+            st.info("즐겨찾기한 종목이 없습니다. 리스트에서 ☆를 눌러 추가하세요.")
+        else:
+            st.info("조건에 맞는 종목이 없습니다.")
     else:
         show = filtered.head(200)
-        st.caption(
-            f"조건 충족 {len(filtered)}개"
-            + (" · 상위 200개 표시" if len(filtered) > 200 else "")
-        )
+        if fav_mode:
+            st.caption(f"즐겨찾기 {len(filtered)}개")
+        else:
+            st.caption(
+                f"조건 충족 {len(filtered)}개"
+                + (" · 상위 200개 표시" if len(filtered) > 200 else "")
+            )
 
         display_cols = [c for c in LIST_COLUMNS if c in show.columns]
         widths = list(LIST_WIDTHS[: len(display_cols)])
@@ -634,9 +723,16 @@ if should_query or "last_result" in st.session_state:
             head_cells = []
             for col in display_cols:
                 label = SORT_LABELS.get(col, col)
-                head_cells.append(
-                    f'<div class="ks-th ks-align-{_align(col)}">{escape(label)}</div>'
-                )
+                if col == "corp_name":
+                    head_cells.append(
+                        f'<div class="ks-th ks-align-left">'
+                        f'<span style="display:inline-block;width:1.4rem;"></span>'
+                        f"{escape(label)}</div>"
+                    )
+                else:
+                    head_cells.append(
+                        f'<div class="ks-th ks-align-{_align(col)}">{escape(label)}</div>'
+                    )
             grid_cols = " ".join(f"{w}fr" for w in widths)
             st.markdown(
                 f'<div class="ks-sticky-head-bar" style="grid-template-columns:{grid_cols};">'
@@ -651,7 +747,18 @@ if should_query or "last_result" in st.session_state:
                 for i, col in enumerate(display_cols):
                     if col == "corp_name":
                         with row_cols[i]:
-                            n1, n2 = st.columns([3.0, 1.05], vertical_alignment="center")
+                            star_c, n1, n2 = st.columns(
+                                [0.45, 2.5, 1.05], vertical_alignment="center"
+                            )
+                            fav_on = is_favorite(st, code)
+                            if star_c.button(
+                                "⭐" if fav_on else "☆",
+                                key=f"fav_btn_{code}",
+                                help="즐겨찾기",
+                                use_container_width=True,
+                            ):
+                                toggle_favorite(st, code)
+                                st.rerun()
                             tv = escape(tradingview_chart_url(code))
                             name = escape(str(r["corp_name"]))
                             n1.markdown(
@@ -709,7 +816,18 @@ if should_query or "last_result" in st.session_state:
                 tv = escape(tradingview_chart_url(code))
 
                 with st.container(border=True):
-                    head_l, head_r = st.columns([4.2, 1.1], vertical_alignment="center")
+                    star_c, head_l, head_r = st.columns(
+                        [0.55, 3.7, 1.1], vertical_alignment="center"
+                    )
+                    fav_on = is_favorite(st, code)
+                    if star_c.button(
+                        "⭐" if fav_on else "☆",
+                        key=f"fav_btn_m_{code}",
+                        help="즐겨찾기",
+                        use_container_width=True,
+                    ):
+                        toggle_favorite(st, code)
+                        st.rerun()
                     with head_l:
                         st.markdown(
                             f'<div class="ks-mcard">'
@@ -814,5 +932,19 @@ if should_query or "last_result" in st.session_state:
 else:
     if search_mode:
         st.info("왼쪽에서 종목을 선택하세요. (엔터로 선택하면 바로 조회됩니다)")
+    elif fav_mode:
+        st.info("즐겨찾기한 종목이 없습니다. 리스트에서 ☆를 눌러 추가하세요.")
     else:
         st.info("왼쪽에서 필터를 고른 뒤 **스크리닝**을 누르세요.")
+
+# 즐겨찾기 localStorage 동기화
+if st.session_state.pop("_fav_dirty", False):
+    components.html(
+        localstorage_persist_js(favorites_sorted(st)),
+        height=0,
+        width=0,
+    )
+    try:
+        st.query_params["favs"] = ",".join(favorites_sorted(st))
+    except Exception:
+        pass

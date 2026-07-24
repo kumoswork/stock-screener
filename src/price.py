@@ -6,6 +6,7 @@ import ast
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import pandas as pd
 import requests
@@ -243,25 +244,86 @@ def fetch_price_metrics(
     return pd.DataFrame(rows)
 
 
-def save_price_metrics(df: pd.DataFrame) -> None:
-    """Optional local cache — kept for build scripts; app uses session state."""
-    if df.empty:
-        return
-    from pathlib import Path
-
+def save_price_metrics(df: pd.DataFrame) -> Path:
+    """Persist price metrics cache for Cloud screening."""
     path = Path(__file__).resolve().parent.parent / "data" / "price_cache.csv"
+    meta = Path(__file__).resolve().parent.parent / "data" / "price_cache_meta.txt"
     path.parent.mkdir(parents=True, exist_ok=True)
+    if df is None or df.empty:
+        pd.DataFrame(
+            columns=[
+                "stock_code",
+                "corp_name",
+                "current_price",
+                "low_52w",
+                "high_52w",
+                "avg_52w",
+                "pct_from_avg_52w",
+                "range_position",
+                "bottom_dwell_ratio",
+                "updated_at",
+            ]
+        ).to_csv(path, index=False)
+        meta.write_text(
+            f"updated_at={datetime.now().isoformat(timespec='seconds')}\nrows=0\n",
+            encoding="utf-8",
+        )
+        return path
+
     out = df.copy()
+    if "stock_code" in out.columns:
+        out["stock_code"] = out["stock_code"].astype(str).str.zfill(6)
     out["updated_at"] = datetime.now().isoformat(timespec="seconds")
     out.to_csv(path, index=False)
+    meta.write_text(
+        f"updated_at={datetime.now().isoformat(timespec='seconds')}\n"
+        f"rows={len(out)}\n",
+        encoding="utf-8",
+    )
+    return path
 
 
 def load_price_metrics() -> pd.DataFrame:
-    from pathlib import Path
-
     path = Path(__file__).resolve().parent.parent / "data" / "price_cache.csv"
     if not path.exists():
         return pd.DataFrame()
     df = pd.read_csv(path, dtype={"stock_code": str})
+    if "stock_code" not in df.columns or df.empty:
+        return pd.DataFrame()
     df["stock_code"] = df["stock_code"].astype(str).str.zfill(6)
     return df
+
+
+def price_cache_exists() -> bool:
+    df = load_price_metrics()
+    return not df.empty
+
+
+def price_cache_meta() -> str:
+    meta = Path(__file__).resolve().parent.parent / "data" / "price_cache_meta.txt"
+    if meta.exists():
+        return meta.read_text(encoding="utf-8")
+    path = Path(__file__).resolve().parent.parent / "data" / "price_cache.csv"
+    if path.exists():
+        try:
+            n = len(pd.read_csv(path, usecols=["stock_code"]))
+            return f"rows={n}\n"
+        except Exception:
+            return "price cache present\n"
+    return "주가 캐시 없음"
+
+
+def price_cache_caption() -> str:
+    """UI용 짧은 주가 캐시 문구."""
+    import re
+
+    meta = price_cache_meta()
+    if "주가 캐시 없음" in meta:
+        return "주가 캐시 없음 · scripts/build_price_cache.py 실행 후 push"
+    m = re.search(r"updated_at=([^\n]+)", meta)
+    n = re.search(r"rows=(\d+)", meta)
+    when = (m.group(1)[:10] if m else "")
+    rows = n.group(1) if n else "?"
+    if when:
+        return f"주가 캐시: {when} ({rows}종목)"
+    return f"주가 캐시: {rows}종목"
