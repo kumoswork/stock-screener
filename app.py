@@ -79,56 +79,43 @@ st.markdown(
       margin-top: -40px !important;
       margin-bottom: 0.55rem !important;
     }
-    /* 모드 전환(종목/필터/즐겨찾기) 눈에 띄게 */
-    section[data-testid="stSidebar"] div[data-testid="stRadio"] {
-      margin: 0.15rem 0 0.65rem 0 !important;
+    /* 모드 탭 (종목/필터/즐겨찾기) */
+    section[data-testid="stSidebar"] .ks-mode-tabs-marker {
+      display: none !important;
     }
-    section[data-testid="stSidebar"] div[data-testid="stRadio"] > div {
-      gap: 0.35rem !important;
-      background: #1a1f2a !important;
-      border: 1px solid #3a4558 !important;
-      border-radius: 12px !important;
-      padding: 0.35rem !important;
+    section[data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has(.ks-mode-tabs-marker) {
+      gap: 0 !important;
+      border-bottom: 1px solid #3a4558 !important;
+      margin: 0 0 0.75rem 0 !important;
+      padding: 0 !important;
     }
-    section[data-testid="stSidebar"] div[data-testid="stRadio"] label {
-      flex: 1 1 0 !important;
-      justify-content: center !important;
-      margin: 0 !important;
-      padding: 0.48rem 0.25rem !important;
-      border-radius: 9px !important;
+    section[data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has(.ks-mode-tabs-marker) [data-testid="column"] {
+      padding: 0 !important;
+    }
+    section[data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has(.ks-mode-tabs-marker) button {
+      width: 100% !important;
+      border: none !important;
+      border-radius: 0 !important;
       background: transparent !important;
-      border: 1px solid transparent !important;
-      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
+      box-shadow: none !important;
+      color: #9aa3b5 !important;
+      font-weight: 650 !important;
+      font-size: 0.9rem !important;
+      min-height: 2.35rem !important;
+      padding: 0.45rem 0.15rem !important;
+      border-bottom: 2px solid transparent !important;
     }
-    section[data-testid="stSidebar"] div[data-testid="stRadio"] label p,
-    section[data-testid="stSidebar"] div[data-testid="stRadio"] label span {
-      font-size: 0.92rem !important;
-      font-weight: 750 !important;
-      letter-spacing: -0.02em !important;
-      color: #c5cddc !important;
-      text-align: center !important;
-      white-space: nowrap !important;
+    section[data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has(.ks-mode-tabs-marker) button:hover {
+      color: #e8eaed !important;
+      background: rgba(255,255,255,0.04) !important;
+      border-bottom-color: #5a6578 !important;
     }
-    section[data-testid="stSidebar"] div[data-testid="stRadio"] label:hover {
-      background: rgba(255, 212, 0, 0.12) !important;
-      border-color: rgba(255, 212, 0, 0.35) !important;
-    }
-    section[data-testid="stSidebar"] div[data-testid="stRadio"] label:has(input:checked) {
-      background: #ffd400 !important;
-      border-color: #e6be00 !important;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.28) !important;
-    }
-    section[data-testid="stSidebar"] div[data-testid="stRadio"] label:has(input:checked) p,
-    section[data-testid="stSidebar"] div[data-testid="stRadio"] label:has(input:checked) span {
-      color: #1a1a1a !important;
-      font-weight: 850 !important;
-    }
-    section[data-testid="stSidebar"] div[data-testid="stRadio"] input[type="radio"] {
-      position: absolute !important;
-      opacity: 0 !important;
-      width: 0 !important;
-      height: 0 !important;
-      pointer-events: none !important;
+    section[data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has(.ks-mode-tabs-marker) button[kind="primary"],
+    section[data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has(.ks-mode-tabs-marker) button[data-testid="baseButton-primary"] {
+      color: #ffd400 !important;
+      font-weight: 800 !important;
+      background: transparent !important;
+      border-bottom: 2px solid #ffd400 !important;
     }
     /* 사이드바 토글: 옷택(close/open) */
     [data-testid="stSidebarCollapseButton"] button,
@@ -543,14 +530,18 @@ def fetch_prices_for_codes(
     return cached_prices_df(codes)
 
 
-def _on_ui_mode_change() -> None:
-    # 필터 위젯이 사라지기 전에 백업 (Streamlit이 미렌더 위젯 키를 삭제함)
+def _switch_ui_mode(new_mode: str) -> None:
+    """탭 클릭으로 모드 전환."""
+    if st.session_state.get("ui_mode") == new_mode:
+        return
     backup_filters_from_session(FILTER_KEYS, ABS_KEYS)
-    if st.session_state.get("ui_mode") == "필터 검색":
+    st.session_state["ui_mode"] = new_mode
+    if new_mode == "필터 검색":
         st.session_state["_need_filter_restore"] = True
     st.session_state.pop("last_result", None)
     st.session_state.pop("last_candidate_count", None)
     st.session_state.pop("open_detail_code", None)
+    st.rerun()
 
 
 def _on_stock_search_change() -> None:
@@ -567,6 +558,10 @@ bootstrap_favorites_from_query(st)
 components.html(localstorage_bootstrap_js(), height=0, width=0)
 
 _LOGO_PATH = Path(__file__).resolve().parent / "assets" / "kumo_logo.png"
+_UI_MODES = ["종목 검색", "필터 검색", "즐겨찾기"]
+if "ui_mode" not in st.session_state:
+    st.session_state["ui_mode"] = "종목 검색"
+
 with st.sidebar:
     if _LOGO_PATH.exists():
         _logo_b64 = base64.b64encode(_LOGO_PATH.read_bytes()).decode("ascii")
@@ -580,14 +575,26 @@ with st.sidebar:
         )
     else:
         st.title("스크리너")
-    ui_mode = st.radio(
-        "검색 방식",
-        ["종목 검색", "필터 검색", "즐겨찾기"],
-        horizontal=True,
-        key="ui_mode",
-        on_change=_on_ui_mode_change,
-        label_visibility="collapsed",
-    )
+
+    st.markdown('<div class="ks-mode-tabs-marker" aria-hidden="true"></div>', unsafe_allow_html=True)
+    tab_cols = st.columns(len(_UI_MODES), gap="small")
+    for i, mode in enumerate(_UI_MODES):
+        active = st.session_state.get("ui_mode") == mode
+        with tab_cols[i]:
+            if i == 0:
+                st.markdown(
+                    '<div class="ks-mode-tabs-marker" aria-hidden="true"></div>',
+                    unsafe_allow_html=True,
+                )
+            if st.button(
+                mode,
+                key=f"ui_mode_tab_{i}",
+                use_container_width=True,
+                type="primary" if active else "secondary",
+            ):
+                _switch_ui_mode(mode)
+
+    ui_mode = st.session_state.get("ui_mode", "종목 검색")
     st.caption(financials_basis_caption())
     st.caption(price_cache_caption())
 
