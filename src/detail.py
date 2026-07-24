@@ -8,7 +8,7 @@ import pandas as pd
 import streamlit as st
 
 from criteria import CATEGORY_LABELS, CATEGORY_WEIGHTS, score_row, specs_in_category
-from screener import format_cell, format_metric_value
+from screener import format_cell, format_metric_value, tradingview_chart_url
 from ui_theme import GRADE_UI
 
 DETAIL_READABLE_CSS = """
@@ -84,6 +84,23 @@ div[data-testid="stDialog"] [data-testid="stMarkdownContainer"] p {
 }
 .ks-cat-chip {
   min-width: 4.6rem;
+}
+a.ks-tv-chip {
+  display: inline-block;
+  margin-left: 0.45rem;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  background: #243049;
+  border: 1px solid #3b4a66;
+  color: #c5d4f5 !important;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none !important;
+  vertical-align: middle;
+}
+a.ks-tv-chip:hover {
+  background: #2d3c5c;
+  color: #fff !important;
 }
 .ks-detail-grid {
   display: grid;
@@ -267,11 +284,14 @@ def detail_dialog(stock_code: str) -> None:
     )
 
     # 상단: 점수 + 카테고리 소점수
+    tv = escape(tradingview_chart_url(code))
     st.markdown(
         f"<div style='background:#151b2b;border:1px solid #2a3348;border-radius:14px;"
         f"padding:1rem 1.15rem;margin-bottom:0.35rem;'>"
         f"<div style='font-size:1.2rem;font-weight:800;color:#f2f5fa;margin-bottom:0.4rem;'>"
-        f"{escape(name)} <span style='color:#8b95a8;font-weight:500;font-size:1rem;'>{code}</span></div>"
+        f"{escape(name)} <span style='color:#8b95a8;font-weight:500;font-size:1rem;'>{code}</span>"
+        f"<a class='ks-tv-chip' href='{tv}' target='_blank' rel='noopener noreferrer'>TradingView</a>"
+        f"</div>"
         f"<div style='color:#8b95a8;font-size:0.9rem;margin-bottom:0.1rem;'>통합 점수 (카테고리 가중)</div>"
         f"<div style='display:flex;align-items:center;gap:0.7rem;flex-wrap:wrap;'>"
         f"<span style='font-size:2.75rem;font-weight:800;line-height:1;color:#fff;'>{score}점</span>"

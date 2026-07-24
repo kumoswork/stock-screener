@@ -37,6 +37,7 @@ from screener import (  # noqa: E402
     render_abs_filters,
     render_sidebar_filters,
     split_filters,
+    tradingview_chart_url,
 )
 from snapshot import (  # noqa: E402
     financials_basis_caption,
@@ -65,7 +66,7 @@ st.markdown(
       margin-top: -40px !important;
       margin-bottom: 0.55rem !important;
     }
-    /* 사이드바 토글: ◀ / ▶ (노랑) */
+    /* 사이드바 토글: 옷택(filter) */
     [data-testid="stSidebarCollapseButton"] button,
     button[data-testid="stExpandSidebarButton"],
     [data-testid="collapsedControl"] button,
@@ -74,8 +75,11 @@ st.markdown(
       border: none !important;
       box-shadow: none !important;
       position: relative !important;
-      min-width: 2.1rem !important;
-      min-height: 2.1rem !important;
+      min-width: 0 !important;
+      min-height: 0 !important;
+      width: auto !important;
+      height: auto !important;
+      padding: 0.15rem !important;
       display: inline-flex !important;
       align-items: center !important;
       justify-content: center !important;
@@ -92,26 +96,62 @@ st.markdown(
       opacity: 0 !important;
       color: transparent !important;
     }
-    [data-testid="stSidebarCollapseButton"] button::after {
-      content: "◀";
-      color: #ffd400 !important;
-      font-size: 1.25rem !important;
-      font-weight: 700 !important;
-      line-height: 1 !important;
-    }
+    [data-testid="stSidebarCollapseButton"] button::after,
     button[data-testid="stExpandSidebarButton"]::after,
     [data-testid="collapsedControl"] button::after,
     [data-testid="stSidebarCollapsedControl"] button::after {
-      content: "▶";
-      color: #ffd400 !important;
-      font-size: 1.25rem !important;
-      font-weight: 700 !important;
+      content: "filter";
+      display: inline-block !important;
+      box-sizing: border-box !important;
+      background: #ffd400 !important;
+      background-image: radial-gradient(circle at 8px 50%, #0e1117 3.2px, transparent 3.5px) !important;
+      color: #1a1a1a !important;
+      font-size: 0.72rem !important;
+      font-weight: 800 !important;
+      letter-spacing: 0.04em !important;
       line-height: 1 !important;
+      text-transform: lowercase !important;
+      padding: 0.48rem 0.62rem 0.48rem 1.05rem !important;
+      border-radius: 3px 8px 8px 3px !important;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.35) !important;
+      border: 1px solid #e6be00 !important;
     }
-    /* 닫힌 뒤 펼치기 버튼이 헤더에 가려지지 않게 */
-    button[data-testid="stExpandSidebarButton"] {
+    /* 닫힌 뒤 펼치기 택이 헤더에 가려지지 않게 */
+    button[data-testid="stExpandSidebarButton"],
+    [data-testid="stSidebarCollapsedControl"] {
       z-index: 1000002 !important;
       position: relative !important;
+    }
+    button[data-testid="stExpandSidebarButton"]::after,
+    [data-testid="stSidebarCollapsedControl"] button::after {
+      padding: 0.58rem 0.72rem 0.58rem 1.12rem !important;
+      font-size: 0.78rem !important;
+    }
+    a.ks-tv-link {
+      color: inherit !important;
+      text-decoration: none !important;
+      border-bottom: 1px dashed #7aa2ff;
+    }
+    a.ks-tv-link:hover {
+      color: #9ec1ff !important;
+      border-bottom-color: #9ec1ff;
+    }
+    a.ks-tv-chip {
+      display: inline-block;
+      margin-left: 0.45rem;
+      padding: 0.18rem 0.55rem;
+      border-radius: 999px;
+      background: #243049;
+      border: 1px solid #3b4a66;
+      color: #c5d4f5 !important;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-decoration: none !important;
+      vertical-align: middle;
+    }
+    a.ks-tv-chip:hover {
+      background: #2d3c5c;
+      color: #fff !important;
     }
     section[data-testid="stSidebar"][aria-expanded="true"] {
         min-width: 380px !important;
@@ -427,6 +467,35 @@ with st.sidebar:
             if save_clicked:
                 st.toast(f"필터 저장됨 ({where})")
 
+# 모바일: 조회/스크리닝 후 사이드바 자동 닫기
+if run:
+    components.html(
+        """
+<script>
+(function () {
+  const doc = window.parent.document;
+  const win = window.parent;
+  if (win.innerWidth > 768) return;
+  function collapse() {
+    const btn =
+      doc.querySelector('[data-testid="stSidebarCollapseButton"] button') ||
+      doc.querySelector('[data-testid="stSidebarCollapseButton"]');
+    if (btn) {
+      btn.click();
+      return true;
+    }
+    return false;
+  }
+  setTimeout(collapse, 80);
+  setTimeout(collapse, 320);
+  setTimeout(collapse, 700);
+})();
+</script>
+        """,
+        height=0,
+        width=0,
+    )
+
 # ---------- Main ----------
 st.title("국내 상장주 스크리너")
 st.caption(financials_basis_caption())
@@ -537,8 +606,14 @@ if should_query or "last_result" in st.session_state:
                     if col == "corp_name":
                         with row_cols[i]:
                             n1, n2 = st.columns([3.0, 1.05], vertical_alignment="center")
+                            tv = escape(tradingview_chart_url(code))
+                            name = escape(str(r["corp_name"]))
                             n1.markdown(
-                                _cell(f"<b>{escape(str(r['corp_name']))}</b>", col),
+                                _cell(
+                                    f'<a class="ks-tv-link" href="{tv}" target="_blank" '
+                                    f'rel="noopener noreferrer"><b>{name}</b></a>',
+                                    col,
+                                ),
                                 unsafe_allow_html=True,
                             )
                             if n2.button("상세", type="primary", key=f"detail_btn_{code}"):
@@ -585,13 +660,16 @@ if should_query or "last_result" in st.session_state:
                 op_txt = escape(format_cell(r, "operating_margin"))
                 rev_txt = escape(format_cell(r, "revenue_growth"))
                 name = escape(str(r.get("corp_name", "") or ""))
+                tv = escape(tradingview_chart_url(code))
 
                 with st.container(border=True):
                     head_l, head_r = st.columns([4.2, 1.1], vertical_alignment="center")
                     with head_l:
                         st.markdown(
                             f'<div class="ks-mcard">'
-                            f'<div class="ks-mcard-name">{name}</div>'
+                            f'<div class="ks-mcard-name">'
+                            f'<a class="ks-tv-link" href="{tv}" target="_blank" '
+                            f'rel="noopener noreferrer">{name}</a></div>'
                             f'<div class="ks-mcard-meta">{escape(code)} · {escape(market_label)} · '
                             f"{escape(score_txt)} {grade_html}</div>"
                             f'<div class="ks-mcard-metrics">'
