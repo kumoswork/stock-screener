@@ -79,6 +79,57 @@ st.markdown(
       margin-top: -40px !important;
       margin-bottom: 0.55rem !important;
     }
+    /* 모드 전환(종목/필터/즐겨찾기) 눈에 띄게 */
+    section[data-testid="stSidebar"] div[data-testid="stRadio"] {
+      margin: 0.15rem 0 0.65rem 0 !important;
+    }
+    section[data-testid="stSidebar"] div[data-testid="stRadio"] > div {
+      gap: 0.35rem !important;
+      background: #1a1f2a !important;
+      border: 1px solid #3a4558 !important;
+      border-radius: 12px !important;
+      padding: 0.35rem !important;
+    }
+    section[data-testid="stSidebar"] div[data-testid="stRadio"] label {
+      flex: 1 1 0 !important;
+      justify-content: center !important;
+      margin: 0 !important;
+      padding: 0.48rem 0.25rem !important;
+      border-radius: 9px !important;
+      background: transparent !important;
+      border: 1px solid transparent !important;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
+    }
+    section[data-testid="stSidebar"] div[data-testid="stRadio"] label p,
+    section[data-testid="stSidebar"] div[data-testid="stRadio"] label span {
+      font-size: 0.92rem !important;
+      font-weight: 750 !important;
+      letter-spacing: -0.02em !important;
+      color: #c5cddc !important;
+      text-align: center !important;
+      white-space: nowrap !important;
+    }
+    section[data-testid="stSidebar"] div[data-testid="stRadio"] label:hover {
+      background: rgba(255, 212, 0, 0.12) !important;
+      border-color: rgba(255, 212, 0, 0.35) !important;
+    }
+    section[data-testid="stSidebar"] div[data-testid="stRadio"] label:has(input:checked) {
+      background: #ffd400 !important;
+      border-color: #e6be00 !important;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.28) !important;
+    }
+    section[data-testid="stSidebar"] div[data-testid="stRadio"] label:has(input:checked) p,
+    section[data-testid="stSidebar"] div[data-testid="stRadio"] label:has(input:checked) span {
+      color: #1a1a1a !important;
+      font-weight: 850 !important;
+    }
+    section[data-testid="stSidebar"] div[data-testid="stRadio"] input[type="radio"] {
+      position: absolute !important;
+      opacity: 0 !important;
+      width: 0 !important;
+      height: 0 !important;
+      pointer-events: none !important;
+    }
     /* 사이드바 토글: 옷택(close/open) */
     [data-testid="stSidebarCollapseButton"] button,
     button[data-testid="stExpandSidebarButton"],
