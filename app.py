@@ -243,22 +243,33 @@ st.markdown(
       font-weight: 700 !important;
       color: inherit !important;
     }
-    /* 결과 리스트 헤더 고정 */
-    .ks-sticky-header {
+    /* 결과 리스트 헤더 고정 (HTML 바) */
+    .ks-sticky-head-bar {
       position: sticky !important;
       top: 0 !important;
-      z-index: 200 !important;
+      z-index: 1000 !important;
+      display: grid !important;
+      gap: 0.35rem !important;
+      align-items: center !important;
       background: #0e1117 !important;
-      padding-top: 0.4rem !important;
-      padding-bottom: 0.35rem !important;
-      margin-bottom: 0 !important;
+      padding: 0.45rem 0.15rem 0.4rem 0.15rem !important;
+      margin: 0 0 0.35rem 0 !important;
       border-bottom: 1px solid #c8c8c8 !important;
-      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.28) !important;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35) !important;
     }
-    .ks-sticky-header [data-testid="stHorizontalBlock"] {
-      background: #0e1117 !important;
+    .ks-sticky-head-bar .ks-th {
+      margin: 0 !important;
+      line-height: 1.35 !important;
+      font-size: 0.92rem !important;
+      font-weight: 700 !important;
+      color: #e8eaed !important;
+      background: transparent !important;
     }
-    .ks-sticky-header .ks-th {
+    [data-testid="stElementContainer"]:has(.ks-sticky-head-bar),
+    [data-testid="element-container"]:has(.ks-sticky-head-bar) {
+      position: sticky !important;
+      top: 0 !important;
+      z-index: 1000 !important;
       background: #0e1117 !important;
     }
     div[data-testid="stAppViewContainer"] .main .ks-align-left {
@@ -325,7 +336,7 @@ try:
     )
 except Exception:
     _csv_sig = "na"
-_data_version = f"{_meta}|{_csv_sig}|avg52w-1"
+_data_version = f"{_meta}|{_csv_sig}|sticky-head-2"
 
 # 스냅샷이 바뀌면 예전 검색결과(당기순이익 0 등) 폐기
 if st.session_state.get("_data_version") != _data_version:
@@ -619,13 +630,20 @@ if should_query or "last_result" in st.session_state:
                 '<div class="ks-desktop-list-root" aria-hidden="true"></div>',
                 unsafe_allow_html=True,
             )
+            # Streamlit columns 헤더는 sticky가 잘 깨져서 HTML 그리드로 고정
+            head_cells = []
+            for col in display_cols:
+                label = SORT_LABELS.get(col, col)
+                head_cells.append(
+                    f'<div class="ks-th ks-align-{_align(col)}">{escape(label)}</div>'
+                )
+            grid_cols = " ".join(f"{w}fr" for w in widths)
             st.markdown(
-                '<div class="ks-list-header-anchor" aria-hidden="true"></div>',
+                f'<div class="ks-sticky-head-bar" style="grid-template-columns:{grid_cols};">'
+                + "".join(head_cells)
+                + "</div>",
                 unsafe_allow_html=True,
             )
-            header = st.columns(widths, vertical_alignment="center")
-            for i, col in enumerate(display_cols):
-                header[i].markdown(_head(col), unsafe_allow_html=True)
 
             for _, r in show.iterrows():
                 code = str(r["stock_code"]).zfill(6)
@@ -719,7 +737,7 @@ if should_query or "last_result" in st.session_state:
                         ):
                             st.session_state["open_detail_code"] = code
 
-        # PC/모바일 목록 전환 + 데스크톱 헤더 sticky
+        # PC/모바일 목록 전환 + 데스크톱 헤더 sticky 보강
         components.html(
             """
 <script>
@@ -728,43 +746,33 @@ if should_query or "last_result" in st.session_state:
   const win = window.parent;
   let timer = null;
 
-  function containerOf(el) {
-    return (
-      el.closest('[data-testid="stElementContainer"]') ||
-      el.closest('[data-testid="element-container"]') ||
-      el.parentElement
-    );
-  }
-
-  function pinHeader() {
-    doc.querySelectorAll('.ks-list-header-anchor').forEach(function (anchor) {
-      const vblock = anchor.closest('[data-testid="stVerticalBlock"]');
-      if (!vblock) return;
-      const nodes = Array.from(vblock.querySelectorAll('[data-testid="stHorizontalBlock"]'));
-      if (!nodes.length) return;
-      // 앵커 이후에 나오는 첫 가로 블록 = 컬럼 헤더
-      let header = null;
-      for (let i = 0; i < nodes.length; i++) {
-        const c = containerOf(nodes[i]);
-        if (!c) continue;
-        if (anchor.compareDocumentPosition(nodes[i]) & Node.DOCUMENT_POSITION_FOLLOWING) {
-          header = c;
-          break;
-        }
+  function pinStickyBars() {
+    doc.querySelectorAll('.ks-sticky-head-bar').forEach(function (bar) {
+      const wrap =
+        bar.closest('[data-testid="stElementContainer"]') ||
+        bar.closest('[data-testid="element-container"]') ||
+        bar.parentElement;
+      if (wrap) {
+        wrap.style.position = 'sticky';
+        wrap.style.top = '0px';
+        wrap.style.zIndex = '1000';
+        wrap.style.background = '#0e1117';
       }
-      if (!header) header = containerOf(nodes[0]);
-      if (!header) return;
-      header.classList.add('ks-sticky-header');
-      // sticky가 overflow에 막히지 않게 상위 몇 단만 완화
-      let p = header.parentElement;
+      bar.style.position = 'sticky';
+      bar.style.top = '0px';
+      bar.style.zIndex = '1001';
+      bar.style.background = '#0e1117';
+
+      let p = (wrap || bar).parentElement;
       let guard = 0;
-      while (p && guard < 8) {
+      while (p && guard < 12) {
         const cs = win.getComputedStyle(p);
-        if (cs.overflow === 'hidden' || cs.overflowY === 'hidden') {
+        if (['hidden', 'clip'].indexOf(cs.overflow) >= 0 ||
+            ['hidden', 'clip'].indexOf(cs.overflowY) >= 0) {
           p.style.overflow = 'visible';
           p.style.overflowY = 'visible';
         }
-        if (p.getAttribute('data-testid') === 'stAppViewContainer') break;
+        if (p.getAttribute && p.getAttribute('data-testid') === 'stAppViewContainer') break;
         p = p.parentElement;
         guard += 1;
       }
@@ -781,7 +789,7 @@ if should_query or "last_result" in st.session_state:
       const block = el.closest('[data-testid="stVerticalBlock"]');
       if (block) block.style.display = mobile ? '' : 'none';
     });
-    if (!mobile) pinHeader();
+    if (!mobile) pinStickyBars();
   }
   function schedule() {
     if (timer) win.clearTimeout(timer);
