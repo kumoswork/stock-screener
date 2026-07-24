@@ -243,6 +243,24 @@ st.markdown(
       font-weight: 700 !important;
       color: inherit !important;
     }
+    /* 결과 리스트 헤더 고정 */
+    .ks-sticky-header {
+      position: sticky !important;
+      top: 0 !important;
+      z-index: 200 !important;
+      background: #0e1117 !important;
+      padding-top: 0.4rem !important;
+      padding-bottom: 0.35rem !important;
+      margin-bottom: 0 !important;
+      border-bottom: 1px solid #c8c8c8 !important;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.28) !important;
+    }
+    .ks-sticky-header [data-testid="stHorizontalBlock"] {
+      background: #0e1117 !important;
+    }
+    .ks-sticky-header .ks-th {
+      background: #0e1117 !important;
+    }
     div[data-testid="stAppViewContainer"] .main .ks-align-left {
       text-align: left !important;
     }
@@ -601,14 +619,13 @@ if should_query or "last_result" in st.session_state:
                 '<div class="ks-desktop-list-root" aria-hidden="true"></div>',
                 unsafe_allow_html=True,
             )
+            st.markdown(
+                '<div class="ks-list-header-anchor" aria-hidden="true"></div>',
+                unsafe_allow_html=True,
+            )
             header = st.columns(widths, vertical_alignment="center")
             for i, col in enumerate(display_cols):
                 header[i].markdown(_head(col), unsafe_allow_html=True)
-
-            st.markdown(
-                "<hr style='margin:0.3rem 0 0.45rem 0; border:none; border-top:1px solid #c8c8c8;'>",
-                unsafe_allow_html=True,
-            )
 
             for _, r in show.iterrows():
                 code = str(r["stock_code"]).zfill(6)
@@ -702,7 +719,7 @@ if should_query or "last_result" in st.session_state:
                         ):
                             st.session_state["open_detail_code"] = code
 
-        # PC/모바일 목록 전환 (컨테이너 :has 대신 JS로 확정)
+        # PC/모바일 목록 전환 + 데스크톱 헤더 sticky
         components.html(
             """
 <script>
@@ -710,6 +727,50 @@ if should_query or "last_result" in st.session_state:
   const doc = window.parent.document;
   const win = window.parent;
   let timer = null;
+
+  function containerOf(el) {
+    return (
+      el.closest('[data-testid="stElementContainer"]') ||
+      el.closest('[data-testid="element-container"]') ||
+      el.parentElement
+    );
+  }
+
+  function pinHeader() {
+    doc.querySelectorAll('.ks-list-header-anchor').forEach(function (anchor) {
+      const vblock = anchor.closest('[data-testid="stVerticalBlock"]');
+      if (!vblock) return;
+      const nodes = Array.from(vblock.querySelectorAll('[data-testid="stHorizontalBlock"]'));
+      if (!nodes.length) return;
+      // 앵커 이후에 나오는 첫 가로 블록 = 컬럼 헤더
+      let header = null;
+      for (let i = 0; i < nodes.length; i++) {
+        const c = containerOf(nodes[i]);
+        if (!c) continue;
+        if (anchor.compareDocumentPosition(nodes[i]) & Node.DOCUMENT_POSITION_FOLLOWING) {
+          header = c;
+          break;
+        }
+      }
+      if (!header) header = containerOf(nodes[0]);
+      if (!header) return;
+      header.classList.add('ks-sticky-header');
+      // sticky가 overflow에 막히지 않게 상위 몇 단만 완화
+      let p = header.parentElement;
+      let guard = 0;
+      while (p && guard < 8) {
+        const cs = win.getComputedStyle(p);
+        if (cs.overflow === 'hidden' || cs.overflowY === 'hidden') {
+          p.style.overflow = 'visible';
+          p.style.overflowY = 'visible';
+        }
+        if (p.getAttribute('data-testid') === 'stAppViewContainer') break;
+        p = p.parentElement;
+        guard += 1;
+      }
+    });
+  }
+
   function sync() {
     const mobile = win.innerWidth <= 768;
     doc.querySelectorAll('.ks-desktop-list-root').forEach(function (el) {
@@ -720,6 +781,7 @@ if should_query or "last_result" in st.session_state:
       const block = el.closest('[data-testid="stVerticalBlock"]');
       if (block) block.style.display = mobile ? '' : 'none';
     });
+    if (!mobile) pinHeader();
   }
   function schedule() {
     if (timer) win.clearTimeout(timer);
