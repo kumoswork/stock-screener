@@ -15,7 +15,6 @@ import streamlit.components.v1 as components
 SRC_DIR = Path(__file__).resolve().parent / "src"
 sys.path.insert(0, str(SRC_DIR))
 
-from detail import open_detail_for_row  # noqa: E402
 from filter_store import (  # noqa: E402
     backup_filters_from_session,
     collect_filter_state,
@@ -37,7 +36,6 @@ from screener import (  # noqa: E402
     render_abs_filters,
     render_sidebar_filters,
     split_filters,
-    tradingview_chart_url,
 )
 from snapshot import (  # noqa: E402
     financials_basis_caption,
@@ -45,7 +43,9 @@ from snapshot import (  # noqa: E402
     financials_meta,
     load_financials,
 )
+from tv import tradingview_chart_url  # noqa: E402
 from ui_theme import grade_badge_html, inject_list_detail_css  # noqa: E402
+from detail import open_detail_for_row  # noqa: E402
 
 st.set_page_config(
     page_title="국내주식 스크리너",

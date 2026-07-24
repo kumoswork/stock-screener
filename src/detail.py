@@ -8,7 +8,8 @@ import pandas as pd
 import streamlit as st
 
 from criteria import CATEGORY_LABELS, CATEGORY_WEIGHTS, score_row, specs_in_category
-from screener import format_cell, format_metric_value, tradingview_chart_url
+from screener import format_cell, format_metric_value
+from tv import tradingview_chart_url
 from ui_theme import GRADE_UI
 
 DETAIL_READABLE_CSS = """

@@ -48,12 +48,6 @@ LIST_ALIGN = {
 }
 
 
-def tradingview_chart_url(stock_code: str) -> str:
-    """국내 상장주 TradingView 차트 URL (KRX)."""
-    code = str(stock_code).zfill(6)
-    return f"https://kr.tradingview.com/chart/?symbol=KRX%3A{code}"
-
-
 def all_filter_keys() -> list[str]:
     return [s.key for s in FILTER_SPECS]
 
