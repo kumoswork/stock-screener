@@ -241,6 +241,31 @@ st.markdown(
         min-height: 1.55rem !important;
         line-height: 1.2 !important;
     }
+    /* 즐겨찾기 별: 네모 버튼 박스 제거 */
+    div[data-testid="stAppViewContainer"] .main [data-testid="stElementContainer"]:has(.ks-fav-slot) button,
+    div[data-testid="stAppViewContainer"] .main [data-testid="element-container"]:has(.ks-fav-slot) button,
+    div[data-testid="stAppViewContainer"] .main [data-testid="column"]:has(.ks-fav-slot) button {
+      background: transparent !important;
+      background-color: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      outline: none !important;
+      min-height: 1.5rem !important;
+      height: 1.5rem !important;
+      min-width: 1.5rem !important;
+      padding: 0 !important;
+      color: #ffd400 !important;
+      font-size: 1.15rem !important;
+      line-height: 1 !important;
+    }
+    div[data-testid="stAppViewContainer"] .main [data-testid="stElementContainer"]:has(.ks-fav-slot) button:hover,
+    div[data-testid="stAppViewContainer"] .main [data-testid="element-container"]:has(.ks-fav-slot) button:hover,
+    div[data-testid="stAppViewContainer"] .main [data-testid="column"]:has(.ks-fav-slot) button:hover {
+      background: transparent !important;
+      border: none !important;
+      opacity: 0.85 !important;
+    }
+    .ks-fav-slot { display: none !important; height: 0 !important; }
     /* 결과 리스트: 헤더·값 세로/가로 정렬 */
     div[data-testid="stAppViewContainer"] .main div[data-testid="stHorizontalBlock"] {
       align-items: center !important;
@@ -751,14 +776,19 @@ if should_query or (not fav_mode and "last_result" in st.session_state):
                                 [0.45, 2.5, 1.05], vertical_alignment="center"
                             )
                             fav_on = is_favorite(st, code)
-                            if star_c.button(
-                                "⭐" if fav_on else "☆",
-                                key=f"fav_btn_{code}",
-                                help="즐겨찾기",
-                                use_container_width=True,
-                            ):
-                                toggle_favorite(st, code)
-                                st.rerun()
+                            with star_c:
+                                st.markdown(
+                                    '<div class="ks-fav-slot" aria-hidden="true"></div>',
+                                    unsafe_allow_html=True,
+                                )
+                                if st.button(
+                                    "⭐" if fav_on else "☆",
+                                    key=f"fav_btn_{code}",
+                                    help="즐겨찾기",
+                                    use_container_width=True,
+                                ):
+                                    toggle_favorite(st, code)
+                                    st.rerun()
                             tv = escape(tradingview_chart_url(code))
                             name = escape(str(r["corp_name"]))
                             n1.markdown(
@@ -820,14 +850,19 @@ if should_query or (not fav_mode and "last_result" in st.session_state):
                         [0.55, 3.7, 1.1], vertical_alignment="center"
                     )
                     fav_on = is_favorite(st, code)
-                    if star_c.button(
-                        "⭐" if fav_on else "☆",
-                        key=f"fav_btn_m_{code}",
-                        help="즐겨찾기",
-                        use_container_width=True,
-                    ):
-                        toggle_favorite(st, code)
-                        st.rerun()
+                    with star_c:
+                        st.markdown(
+                            '<div class="ks-fav-slot" aria-hidden="true"></div>',
+                            unsafe_allow_html=True,
+                        )
+                        if st.button(
+                            "⭐" if fav_on else "☆",
+                            key=f"fav_btn_m_{code}",
+                            help="즐겨찾기",
+                            use_container_width=True,
+                        ):
+                            toggle_favorite(st, code)
+                            st.rerun()
                     with head_l:
                         st.markdown(
                             f'<div class="ks-mcard">'
@@ -897,6 +932,21 @@ if should_query or (not fav_mode and "last_result" in st.session_state):
     });
   }
 
+  function styleFavButtons() {
+    doc.querySelectorAll('button').forEach(function (btn) {
+      const t = (btn.innerText || '').trim();
+      if (t === '⭐' || t === '☆') {
+        btn.style.background = 'transparent';
+        btn.style.border = 'none';
+        btn.style.boxShadow = 'none';
+        btn.style.minHeight = '1.5rem';
+        btn.style.padding = '0';
+        btn.style.color = '#ffd400';
+        btn.style.fontSize = '1.15rem';
+      }
+    });
+  }
+
   function sync() {
     const mobile = win.innerWidth <= 768;
     doc.querySelectorAll('.ks-desktop-list-root').forEach(function (el) {
@@ -908,6 +958,7 @@ if should_query or (not fav_mode and "last_result" in st.session_state):
       if (block) block.style.display = mobile ? '' : 'none';
     });
     if (!mobile) pinStickyBars();
+    styleFavButtons();
   }
   function schedule() {
     if (timer) win.clearTimeout(timer);
