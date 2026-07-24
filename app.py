@@ -79,18 +79,31 @@ st.markdown(
       margin-top: -40px !important;
       margin-bottom: 0.55rem !important;
     }
-    /* 모드 탭 (종목/필터/즐겨찾기) */
+    /* 모드 탭 (종목/필터/즐겨찾기) — 세 칸 동일 높이 */
     section[data-testid="stSidebar"] .ks-mode-tabs-marker {
-      display: none !important;
+      display: block !important;
+      height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      line-height: 0 !important;
+      border: 0 !important;
     }
     section[data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has(.ks-mode-tabs-marker) {
       gap: 0 !important;
+      align-items: stretch !important;
       border-bottom: 1px solid #3a4558 !important;
       margin: 0 0 0.75rem 0 !important;
       padding: 0 !important;
     }
     section[data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has(.ks-mode-tabs-marker) [data-testid="column"] {
       padding: 0 !important;
+      display: flex !important;
+      flex-direction: column !important;
+    }
+    section[data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has(.ks-mode-tabs-marker) [data-testid="stVerticalBlock"] {
+      gap: 0 !important;
+      flex: 1 1 auto !important;
     }
     section[data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has(.ks-mode-tabs-marker) button {
       width: 100% !important;
@@ -100,10 +113,17 @@ st.markdown(
       box-shadow: none !important;
       color: #9aa3b5 !important;
       font-weight: 650 !important;
-      font-size: 0.9rem !important;
-      min-height: 2.35rem !important;
-      padding: 0.45rem 0.15rem !important;
+      font-size: 0.88rem !important;
+      height: 2.4rem !important;
+      min-height: 2.4rem !important;
+      max-height: 2.4rem !important;
+      padding: 0 0.1rem !important;
       border-bottom: 2px solid transparent !important;
+      white-space: nowrap !important;
+    }
+    section[data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has(.ks-mode-tabs-marker) button p {
+      font-size: 0.88rem !important;
+      white-space: nowrap !important;
     }
     section[data-testid="stSidebar"] div[data-testid="stHorizontalBlock"]:has(.ks-mode-tabs-marker) button:hover {
       color: #e8eaed !important;
@@ -274,10 +294,12 @@ st.markdown(
         background: #4c8bf5 !important;
         color: #fff !important;
         border: none !important;
-        padding: 0.12rem 0.45rem !important;
-        font-size: 0.78rem !important;
-        min-height: 1.55rem !important;
-        line-height: 1.2 !important;
+        padding: 0.05rem 0.32rem !important;
+        font-size: 0.7rem !important;
+        min-height: 1.2rem !important;
+        height: 1.2rem !important;
+        line-height: 1.1 !important;
+        border-radius: 5px !important;
     }
     /* 즐겨찾기 별: 네모 버튼 박스 제거 */
     div[data-testid="stAppViewContainer"] .main [data-testid="stElementContainer"]:has(.ks-fav-slot) button,
@@ -576,16 +598,15 @@ with st.sidebar:
     else:
         st.title("스크리너")
 
-    st.markdown('<div class="ks-mode-tabs-marker" aria-hidden="true"></div>', unsafe_allow_html=True)
     tab_cols = st.columns(len(_UI_MODES), gap="small")
     for i, mode in enumerate(_UI_MODES):
         active = st.session_state.get("ui_mode") == mode
         with tab_cols[i]:
-            if i == 0:
-                st.markdown(
-                    '<div class="ks-mode-tabs-marker" aria-hidden="true"></div>',
-                    unsafe_allow_html=True,
-                )
+            # 세 칸 모두 동일 구조로 높이 맞춤
+            st.markdown(
+                '<div class="ks-mode-tabs-marker" aria-hidden="true"></div>',
+                unsafe_allow_html=True,
+            )
             if st.button(
                 mode,
                 key=f"ui_mode_tab_{i}",
