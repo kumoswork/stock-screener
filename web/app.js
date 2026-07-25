@@ -12,6 +12,8 @@ const state = {
   selectedCode: null,
   selectedLabel: "",
   rows: [],
+  sortKey: "attractiveness",
+  sortDir: "desc",
   resultsByMode: {
     filter: null,
     search: null,
@@ -144,6 +146,7 @@ function suffixFor(spec) {
   const u = unitFor(spec);
   if (spec.direction === "min") return u ? `${u} 이상` : "이상";
   if (spec.direction === "max" || spec.direction === "max_change") return u ? `${u} 이하` : "이하";
+  if (spec.direction === "range") return u || "";
   return u;
 }
 
@@ -407,6 +410,68 @@ function confirmResetFilters() {
   setStatus("필터가 초기화되었습니다.");
 }
 
+function sortValue(row, key) {
+  if (!key || key === "chart") return null;
+  if (key === "grade" || key === "attractiveness") {
+    const n = Number(row.attractiveness);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (key === "corp_name" || key === "market" || key === "stock_code") {
+    return String(row[key] ?? "");
+  }
+  const num = row[`${key}_num`];
+  if (num != null && num !== "" && Number.isFinite(Number(num))) return Number(num);
+  const raw = row[key];
+  if (raw == null || raw === "-") return null;
+  const s = String(raw).replace(/,/g, "").trim();
+  if (s.endsWith("조")) {
+    const n = parseFloat(s);
+    return Number.isFinite(n) ? n * 1e12 : null;
+  }
+  if (s.endsWith("억")) {
+    const n = parseFloat(s);
+    return Number.isFinite(n) ? n * 1e8 : null;
+  }
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : String(raw);
+}
+
+function applySort(rows) {
+  const list = rows || [];
+  const key = state.sortKey;
+  if (!key || !list.length) return list;
+  const dir = state.sortDir === "asc" ? 1 : -1;
+  return [...list].sort((a, b) => {
+    const va = sortValue(a, key);
+    const vb = sortValue(b, key);
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    if (typeof va === "string" || typeof vb === "string") {
+      return String(va).localeCompare(String(vb), "ko") * dir;
+    }
+    return (va - vb) * dir;
+  });
+}
+
+function setSort(key) {
+  if (!key || key === "chart") return;
+  if (state.sortKey === key) {
+    state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
+  } else {
+    state.sortKey = key;
+    state.sortDir =
+      key === "corp_name" || key === "stock_code" || key === "market" ? "asc" : "desc";
+  }
+  if (state.meta) renderListHead(state.meta);
+  const sorted = applySort(state.rows);
+  renderList(sorted);
+  const cached = state.resultsByMode[state.mode];
+  if (cached) {
+    state.resultsByMode[state.mode] = { ...cached, rows: sorted };
+  }
+}
+
 function gradeBadge(grade, label) {
   const cls = GRADE_CLASS[grade] || "neutral";
   return `<span class="badge ${cls}">${escapeHtml(label || grade || "-")}</span>`;
@@ -428,7 +493,14 @@ function renderListHead(meta) {
     `<span></span>`,
     ...cols.map((c) => {
       const cls = c === "corp_name" ? "c-name" : "c-center";
-      return `<span class="${cls}">${escapeHtml(labels[c] || c)}</span>`;
+      if (c === "chart") {
+        return `<span class="${cls}">${escapeHtml(labels[c] || c)}</span>`;
+      }
+      const active = state.sortKey === c;
+      const arrow = active ? (state.sortDir === "asc" ? " ↑" : " ↓") : "";
+      return `<button type="button" class="sort-head ${cls}${active ? " active" : ""}" data-sort="${escapeHtml(
+        c
+      )}">${escapeHtml(labels[c] || c)}${arrow}</button>`;
     }),
   ];
   $("list-head").innerHTML = `<div class="head-row">${cells.join("")}</div>`;
@@ -456,10 +528,9 @@ function renderCell(r, c) {
 }
 
 function renderList(rows) {
-  state.rows = rows || [];
+  state.rows = applySort(rows || []);
   const meta = state.meta;
   const cols = meta?.list_columns || [];
-  const labels = meta?.list_labels || {};
   const body = $("list-body");
   const cards = $("cards-body");
 
@@ -665,6 +736,12 @@ function setMode(mode) {
 function wireEvents() {
   document.querySelectorAll(".tab").forEach((btn) => {
     btn.addEventListener("click", () => setMode(btn.dataset.mode));
+  });
+
+  $("list-head").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-sort]");
+    if (!btn) return;
+    setSort(btn.dataset.sort);
   });
 
   $("market-seg").addEventListener("click", (e) => {

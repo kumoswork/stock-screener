@@ -49,14 +49,14 @@ FILTER_SPECS: list[FilterSpec] = [
     FilterSpec("receivable_turnover", "매출채권회전", "효율성 check!", "매출/매출채권 (이상치는 점수 제외)", "min", 10.0, None, True, "회"),
     # check!!
     FilterSpec("revenue_minus_debt_growth", "매출−부채증가", "check!!", "매출성장이 부채성장 이상", "min", 0.0, None, True, "%p"),
-    # 주가 — 저평가는 가산, 과도한 낙폭은 감점
+    # 주가 — 바닥(저평가) 가산, 낙폭이 깊을수록 가점
     FilterSpec(
         "pct_from_avg_52w",
         "52주평균대비",
         "주가 현위치",
-        "현재가÷52주평균-1 · -35~-20% 매우우수 · -40%↓ 낙폭과다 감점 · 총점 비중 낮음",
-        "max",
-        None,
+        "현재가÷52주평균-1 · 낮을수록(바닥) 가산 · 구간 설정",
+        "range",
+        -80.0,
         -20.0,
         False,
         "%",
@@ -184,26 +184,20 @@ def badge_for_value(
             return "주의"
         return "위험"
 
-    # 52주평균대비: 저평가 가산 + 낙폭 과다 감점
+    # 52주평균대비: 바닥 포착 — 낮을수록(더 싼 구간) 가점
     if spec.key == "pct_from_avg_52w":
         if value <= -50:
-            return "위험"
-        if value <= -40:
-            return "주의"
-        if value < -35:
-            return "우수"
-        if value <= -20:
             return "매우우수"
-        if value <= -10:
+        if value <= -20:
             return "우수"
         if value <= 0:
             return "보통"
-        if value <= 15:
+        if value <= 20:
             return "주의"
         return "위험"
 
     # range (debt): 50~200 우수, 200↑ 위험, 50↓ 중립
-    if spec.direction == "range":
+    if spec.direction == "range" and spec.key == "debt_ratio":
         lo, hi = spec.excellent_min, spec.excellent_max
         if lo is not None and hi is not None:
             if lo <= value <= hi:
@@ -211,6 +205,12 @@ def badge_for_value(
             if value > hi:
                 return "위험"
             return "보통"  # below 50% — 감점하지 않음
+
+    if spec.direction == "range":
+        lo, hi = spec.excellent_min, spec.excellent_max
+        if lo is not None and hi is not None and lo <= value <= hi:
+            return "우수"
+        return "보통"
 
     # max_change (sga decrease = good if value <= 0)
     if spec.direction == "max_change":

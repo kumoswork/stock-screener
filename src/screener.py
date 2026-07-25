@@ -301,7 +301,7 @@ def _excellent_hint(spec) -> str:
         good, excellent, very = MARGIN_BADGE_THRESHOLDS[spec.key]
         return f"{good:g}%↑양호 · {excellent:g}%↑우수 · {very:g}%↑매우우수"
     if spec.key == "pct_from_avg_52w":
-        return "-35~-20% 매우우수 · -40%↓ 낙폭과다 감점"
+        return "-50%↓ 매우우수 · -20%↓ 우수 · 구간 필터"
     if spec.key == "debt_ratio":
         return "50~200% 우수 · 50%↓ 중립 · 200%↑ 위험"
     if spec.key == "sga_ratio_change":

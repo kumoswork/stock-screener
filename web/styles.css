@@ -393,7 +393,24 @@ input:focus {
   min-width: 0;
 }
 .row .c-center,
-.head-row > span { text-align: center; min-width: 0; }
+.head-row > span,
+.head-row > .sort-head { text-align: center; min-width: 0; }
+.sort-head {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  padding: 0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sort-head:hover,
+.sort-head.active {
+  color: var(--accent, #1785a3);
+}
+.sort-head.c-name { text-align: left; width: 100%; }
 .row:hover { background: rgba(23, 133, 163, 0.08); cursor: pointer; }
 .row .c-name {
   font-weight: 750;
