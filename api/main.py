@@ -256,6 +256,11 @@ WEB_LIST_LABELS = {
 }
 
 
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 @app.get("/api/meta")
 def api_meta() -> dict[str, Any]:
     fin = get_financials()
