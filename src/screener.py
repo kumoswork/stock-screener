@@ -270,14 +270,18 @@ def render_sidebar_filters(filters: dict) -> None:
 def render_abs_filters(filters: dict) -> None:
     import streamlit as st
 
-    st.markdown("**절대 금액**")
+    st.markdown("**절대 금액 (이상·이하)**")
     for key, label in ABS_SPECS:
-        c_chk, c_val, c_unit, c_suf = st.columns([1.15, 0.95, 0.9, 0.55])
+        c_chk, c_lo, c_tilde, c_hi, c_unit = st.columns([1.15, 0.75, 0.2, 0.75, 0.7])
         with c_chk:
             st.checkbox(label, key=f"abs_{key}")
         if st.session_state.get(f"abs_{key}"):
-            with c_val:
+            with c_lo:
                 lo = _int_number_input("lo", f"abs_{key}_lo")
+            with c_tilde:
+                st.markdown('<p class="ks-unit-suffix">～</p>', unsafe_allow_html=True)
+            with c_hi:
+                hi = _int_number_input("hi", f"abs_{key}_hi")
             with c_unit:
                 unit = st.selectbox(
                     "단위",
@@ -285,13 +289,11 @@ def render_abs_filters(filters: dict) -> None:
                     key=f"abs_{key}_unit",
                     label_visibility="collapsed",
                 )
-            with c_suf:
-                st.markdown(
-                    '<p class="ks-unit-suffix">이상</p>',
-                    unsafe_allow_html=True,
-                )
             mult = 1e8 if unit == "억원" else 1e12
-            filters[key] = (lo * mult if lo else None, None)
+            lo_v = lo * mult if lo else None
+            hi_v = hi * mult if hi else None
+            if lo_v is not None or hi_v is not None:
+                filters[key] = (lo_v, hi_v)
     st.divider()
 
 

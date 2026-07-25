@@ -236,7 +236,10 @@ input:focus {
   width: 4.2rem;
 }
 .filter-inputs.abs input[type="number"] {
-  width: 5rem;
+  width: 4.2rem;
+}
+.filter-inputs.abs.range {
+  flex-wrap: wrap;
 }
 .filter-row .unit {
   color: var(--muted);

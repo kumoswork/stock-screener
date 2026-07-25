@@ -153,20 +153,21 @@ function suffixFor(spec) {
 function buildFiltersUI(meta) {
   const absRoot = $("abs-filters");
   const listRoot = $("filter-list");
-  absRoot.innerHTML = `<div class="cat-title">규모 (이상)</div>`;
+  absRoot.innerHTML = `<div class="cat-title">규모 (이상·이하)</div>`;
   for (const a of meta.abs_specs) {
     const row = document.createElement("div");
     row.className = "filter-row";
     row.dataset.absKey = a.key;
     row.innerHTML = `
       <label><input type="checkbox" data-abs="${escapeHtml(a.key)}" /> ${escapeHtml(a.label)}</label>
-      <div class="filter-inputs abs">
-        <input type="number" data-abs-lo="${escapeHtml(a.key)}" step="any" />
+      <div class="filter-inputs abs range">
+        <input type="number" data-abs-lo="${escapeHtml(a.key)}" step="any" placeholder="이상" title="이상 (비우면 제한 없음)" />
+        <span class="tilde">～</span>
+        <input type="number" data-abs-hi="${escapeHtml(a.key)}" step="any" placeholder="이하" title="이하 (비우면 제한 없음)" />
         <select data-abs-unit="${escapeHtml(a.key)}">
           <option value="억원">억원</option>
           <option value="조원">조원</option>
         </select>
-        <span class="unit">이상</span>
       </div>
     `;
     absRoot.appendChild(row);
@@ -264,10 +265,19 @@ function collectFilters() {
     const on = document.querySelector(`[data-abs="${CSS.escape(a.key)}"]`);
     if (!on || !on.checked) continue;
     const loEl = document.querySelector(`[data-abs-lo="${CSS.escape(a.key)}"]`);
+    const hiEl = document.querySelector(`[data-abs-hi="${CSS.escape(a.key)}"]`);
     const unitEl = document.querySelector(`[data-abs-unit="${CSS.escape(a.key)}"]`);
     const lo = loEl && loEl.value !== "" ? Number(loEl.value) : null;
-    if (lo == null || !Number.isFinite(lo)) continue;
-    abs[a.key] = { on: true, lo, unit: unitEl?.value || "억원" };
+    const hi = hiEl && hiEl.value !== "" ? Number(hiEl.value) : null;
+    const loOk = lo != null && Number.isFinite(lo);
+    const hiOk = hi != null && Number.isFinite(hi);
+    if (!loOk && !hiOk) continue;
+    abs[a.key] = {
+      on: true,
+      lo: loOk ? lo : null,
+      hi: hiOk ? hi : null,
+      unit: unitEl?.value || "억원",
+    };
   }
   return { filters, abs };
 }
@@ -316,8 +326,10 @@ function applySavedFilters(saved) {
       chk.checked = on;
       row.classList.toggle("on", on);
       const loEl = document.querySelector(`[data-abs-lo="${CSS.escape(a.key)}"]`);
+      const hiEl = document.querySelector(`[data-abs-hi="${CSS.escape(a.key)}"]`);
       const unitEl = document.querySelector(`[data-abs-unit="${CSS.escape(a.key)}"]`);
-      if (loEl && conf.lo != null) loEl.value = conf.lo;
+      if (loEl && conf.lo != null && conf.lo !== "") loEl.value = conf.lo;
+      if (hiEl && conf.hi != null && conf.hi !== "") hiEl.value = conf.hi;
       if (unitEl && conf.unit) unitEl.value = conf.unit;
     }
   } finally {
@@ -345,11 +357,14 @@ function collectSavedFilterState() {
   for (const a of state.meta?.abs_specs || []) {
     const on = document.querySelector(`[data-abs="${CSS.escape(a.key)}"]`);
     const loEl = document.querySelector(`[data-abs-lo="${CSS.escape(a.key)}"]`);
+    const hiEl = document.querySelector(`[data-abs-hi="${CSS.escape(a.key)}"]`);
     const unitEl = document.querySelector(`[data-abs-unit="${CSS.escape(a.key)}"]`);
+    const lo = loEl && loEl.value !== "" ? Number(loEl.value) : null;
+    const hi = hiEl && hiEl.value !== "" ? Number(hiEl.value) : null;
     absOut[a.key] = {
       on: !!(on && on.checked),
-      lo: loEl && loEl.value !== "" ? Number(loEl.value) : 0,
-      hi: 0,
+      lo: lo != null && Number.isFinite(lo) ? lo : null,
+      hi: hi != null && Number.isFinite(hi) ? hi : null,
       unit: unitEl?.value || "억원",
     };
   }
@@ -381,6 +396,9 @@ function resetFilters() {
       if (row) row.classList.remove("on");
     });
     document.querySelectorAll("#abs-filters [data-abs-lo]").forEach((el) => {
+      el.value = "";
+    });
+    document.querySelectorAll("#abs-filters [data-abs-hi]").forEach((el) => {
       el.value = "";
     });
     document.querySelectorAll("#abs-filters [data-abs-unit]").forEach((el) => {

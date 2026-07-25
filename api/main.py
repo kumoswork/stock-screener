@@ -193,13 +193,19 @@ def _apply_abs(df: pd.DataFrame, abs_filters: dict[str, dict[str, Any]]) -> pd.D
             continue
         if key not in out.columns:
             continue
-        lo = conf.get("lo")
-        if lo is None:
-            continue
         unit = conf.get("unit") or "억원"
         mult = 1e8 if unit == "억원" else 1e12
-        thr = float(lo) * mult
-        out = out[out[key].fillna(-float("inf")) >= thr]
+        lo_raw, hi_raw = conf.get("lo"), conf.get("hi")
+        lo = float(lo_raw) * mult if lo_raw is not None and lo_raw != "" else None
+        hi = float(hi_raw) * mult if hi_raw is not None and hi_raw != "" else None
+        if lo is None and hi is None:
+            continue
+        series = out[key]
+        if lo is not None:
+            out = out[series.fillna(-float("inf")) >= lo]
+            series = out[key]
+        if hi is not None:
+            out = out[series.fillna(float("inf")) <= hi]
     return out
 
 
