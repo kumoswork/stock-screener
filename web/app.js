@@ -158,16 +158,20 @@ function buildFiltersUI(meta) {
     const row = document.createElement("div");
     row.className = "filter-row";
     row.dataset.absKey = a.key;
+    const unitFixed = a.key === "market_cap";
+    const unitHtml = unitFixed
+      ? `<span class="unit">억원</span>`
+      : `<select data-abs-unit="${escapeHtml(a.key)}">
+          <option value="억원">억원</option>
+          <option value="조원">조원</option>
+        </select>`;
     row.innerHTML = `
       <label><input type="checkbox" data-abs="${escapeHtml(a.key)}" /> ${escapeHtml(a.label)}</label>
       <div class="filter-inputs abs range">
         <input type="number" data-abs-lo="${escapeHtml(a.key)}" step="any" placeholder="이상" title="이상 (비우면 제한 없음)" />
         <span class="tilde">～</span>
         <input type="number" data-abs-hi="${escapeHtml(a.key)}" step="any" placeholder="이하" title="이하 (비우면 제한 없음)" />
-        <select data-abs-unit="${escapeHtml(a.key)}">
-          <option value="억원">억원</option>
-          <option value="조원">조원</option>
-        </select>
+        ${unitHtml}
       </div>
     `;
     absRoot.appendChild(row);
@@ -276,7 +280,7 @@ function collectFilters() {
       on: true,
       lo: loOk ? lo : null,
       hi: hiOk ? hi : null,
-      unit: unitEl?.value || "억원",
+      unit: a.key === "market_cap" ? "억원" : unitEl?.value || "억원",
     };
   }
   return { filters, abs };
@@ -330,7 +334,7 @@ function applySavedFilters(saved) {
       const unitEl = document.querySelector(`[data-abs-unit="${CSS.escape(a.key)}"]`);
       if (loEl && conf.lo != null && conf.lo !== "") loEl.value = conf.lo;
       if (hiEl && conf.hi != null && conf.hi !== "") hiEl.value = conf.hi;
-      if (unitEl && conf.unit) unitEl.value = conf.unit;
+      if (unitEl && conf.unit && a.key !== "market_cap") unitEl.value = conf.unit;
     }
   } finally {
     suppressAutosave = false;
@@ -365,7 +369,7 @@ function collectSavedFilterState() {
       on: !!(on && on.checked),
       lo: lo != null && Number.isFinite(lo) ? lo : null,
       hi: hi != null && Number.isFinite(hi) ? hi : null,
-      unit: unitEl?.value || "억원",
+      unit: a.key === "market_cap" ? "억원" : unitEl?.value || "억원",
     };
   }
   return {

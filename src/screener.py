@@ -272,7 +272,10 @@ def render_abs_filters(filters: dict) -> None:
 
     st.markdown("**절대 금액 (이상·이하)**")
     for key, label in ABS_SPECS:
-        c_chk, c_lo, c_tilde, c_hi, c_unit = st.columns([1.15, 0.75, 0.2, 0.75, 0.7])
+        if key == "market_cap":
+            c_chk, c_lo, c_tilde, c_hi, c_unit = st.columns([1.15, 0.75, 0.2, 0.75, 0.55])
+        else:
+            c_chk, c_lo, c_tilde, c_hi, c_unit = st.columns([1.15, 0.75, 0.2, 0.75, 0.7])
         with c_chk:
             st.checkbox(label, key=f"abs_{key}")
         if st.session_state.get(f"abs_{key}"):
@@ -282,13 +285,18 @@ def render_abs_filters(filters: dict) -> None:
                 st.markdown('<p class="ks-unit-suffix">～</p>', unsafe_allow_html=True)
             with c_hi:
                 hi = _int_number_input("hi", f"abs_{key}_hi")
-            with c_unit:
-                unit = st.selectbox(
-                    "단위",
-                    ["억원", "조원"],
-                    key=f"abs_{key}_unit",
-                    label_visibility="collapsed",
-                )
+            if key == "market_cap":
+                with c_unit:
+                    st.markdown('<p class="ks-unit-suffix">억원</p>', unsafe_allow_html=True)
+                unit = "억원"
+            else:
+                with c_unit:
+                    unit = st.selectbox(
+                        "단위",
+                        ["억원", "조원"],
+                        key=f"abs_{key}_unit",
+                        label_visibility="collapsed",
+                    )
             mult = 1e8 if unit == "억원" else 1e12
             lo_v = lo * mult if lo else None
             hi_v = hi * mult if hi else None
