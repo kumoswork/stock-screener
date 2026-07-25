@@ -29,24 +29,24 @@ class FilterSpec:
 FILTER_SPECS: list[FilterSpec] = [
     # B경제
     FilterSpec("cash_survival_years", "현금 생존력", "B경제", "(현금+단기금융)/순손실 = 버틸 연수", "min", 2.0, None, True, "년"),
-    FilterSpec("inventory_months", "재고 보유 월수", "B경제", "재고/매출원가(월) = 현금흐름 압박", "max", None, 3.0, False, "개월"),
+    FilterSpec("inventory_months", "재고 보유 월수", "B경제", "재고/매출원가(월) = 현금흐름 압박 (이상치는 점수 제외)", "max", None, 3.0, False, "개월"),
     FilterSpec("cash_flow_match", "현금흐름일치", "B경제", "영업CF/당기순이익 = 이익의 질 (흑자만 점수 반영)", "min", 1.0, None, True, "배"),
-    FilterSpec("sga_ratio_change", "판관비 전년비", "B경제", "판관비÷매출 비율의 전년 대비 변화(%p, 감소=개선)", "max_change", None, 0.0, False, "%p"),
+    FilterSpec("sga_ratio_change", "판관비 전년비", "B경제", "판관비÷매출 전년차(%p) · 감소=개선 · +10%p↑ 위험", "max_change", None, 0.0, False, "%p"),
     # 안전성
     FilterSpec("current_ratio", "유동비율", "안전성 check!", "유동자산/유동부채", "min", 100.0, None, True, "%"),
     FilterSpec("quick_ratio", "당좌비율", "안전성 check!", "(유동자산-재고)/유동부채", "min", 100.0, None, True, "%"),
-    FilterSpec("debt_ratio", "부채비율", "안전성 check!", "부채총액/자본총액 (50~200% 우수, 50% 미만은 중립)", "range", 50.0, 200.0, True, "%"),
+    FilterSpec("debt_ratio", "부채비율", "안전성 check!", "부채/자본 · 50~200% 우수 · 50%↓ 중립 · 200%↑ 위험", "range", 50.0, 200.0, True, "%"),
     FilterSpec("cash_months", "현금규모(개월)", "안전성 check!", "현금성자산/월 판관비", "min", 12.0, None, True, "개월"),
     # 수익/성장 — 매출성장: 0%↑양호, 40%↑우수, 80%↑매우우수
     FilterSpec("revenue_growth", "매출성장율", "수익/성장성 check!", "(당기-전기)매출/전기 · 0%↑양호 · 40%↑우수 · 80%↑매우우수", "min", 40.0, None, True, "%"),
-    FilterSpec("gross_margin", "매출총이익율", "수익/성장성 check!", "매출총이익/매출 · 20%↑양호 · 30%↑우수", "min", 30.0, None, True, "%"),
+    FilterSpec("gross_margin", "매출총이익율", "수익/성장성 check!", "매출총이익/매출 · 20%↑양호 · 30%↑우수 · 50%↑매우우수", "min", 30.0, None, True, "%"),
     FilterSpec("operating_margin", "영업이익률", "수익/성장성 check!", "영업이익/매출 · 5%↑양호 · 10%↑우수", "min", 10.0, None, True, "%"),
     FilterSpec("net_margin", "당기순이익율", "수익/성장성 check!", "당기순이익/매출 · 3%↑양호 · 8%↑우수", "min", 8.0, None, True, "%"),
     # 효율
     FilterSpec("roa", "ROA", "효율성 check!", "당기순이익/총자산", "min", 5.0, None, True, "%"),
     FilterSpec("roe", "ROE", "효율성 check!", "당기순이익/자기자본", "min", 15.0, None, True, "%"),
-    FilterSpec("inventory_turnover", "재고회전율", "효율성 check!", "매출/재고 (높을수록)", "min", 4.0, None, True, "회"),
-    FilterSpec("receivable_turnover", "매출채권회전", "효율성 check!", "매출/매출채권", "min", 10.0, None, True, "회"),
+    FilterSpec("inventory_turnover", "재고회전율", "효율성 check!", "매출/재고 (높을수록, 이상치는 점수 제외)", "min", 4.0, None, True, "회"),
+    FilterSpec("receivable_turnover", "매출채권회전", "효율성 check!", "매출/매출채권 (이상치는 점수 제외)", "min", 10.0, None, True, "회"),
     # check!!
     FilterSpec("revenue_minus_debt_growth", "매출−부채증가", "check!!", "매출성장이 부채성장 이상", "min", 0.0, None, True, "%p"),
     # 주가 — 저평가는 가산, 과도한 낙폭은 감점
@@ -54,7 +54,7 @@ FILTER_SPECS: list[FilterSpec] = [
         "pct_from_avg_52w",
         "52주평균대비",
         "주가 현위치",
-        "현재가÷52주평균-1 · -35~-20% 우수 · -40%↓ 낙폭과다 감점",
+        "현재가÷52주평균-1 · -35~-20% 매우우수 · -40%↓ 낙폭과다 감점 · 총점 비중 낮음",
         "max",
         None,
         -20.0,

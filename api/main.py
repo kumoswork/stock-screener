@@ -71,12 +71,18 @@ def _excellent_hint(spec) -> str:
     if spec.key == REVENUE_GROWTH_KEY:
         return "0%↑양호 · 40%↑우수 · 80%↑매우우수"
     if spec.key in MARGIN_BADGE_THRESHOLDS:
-        good, excellent, _very = MARGIN_BADGE_THRESHOLDS[spec.key]
-        return f"{good:g}%↑양호 · {excellent:g}%↑우수"
+        good, excellent, very = MARGIN_BADGE_THRESHOLDS[spec.key]
+        return f"{good:g}%↑양호 · {excellent:g}%↑우수 · {very:g}%↑매우우수"
+    if spec.key == "pct_from_avg_52w":
+        return "-35~-20% 매우우수 · -40%↓ 낙폭과다 감점"
+    if spec.key == "debt_ratio":
+        return "50~200% 우수 · 50%↓ 중립 · 200%↑ 위험"
+    if spec.key == "sga_ratio_change":
+        return "0%p↓ 우수 · +10%p↑ 위험"
+    if spec.key == "cash_flow_match":
+        return "1배(100%)↑ 우수 · 적자는 점수 제외"
     if spec.direction == "min" and spec.excellent_min is not None:
         v = spec.excellent_min
-        if spec.key == "cash_flow_match":
-            return f"{v * 100:g}% 이상 우수"
         return f"{v:g}{spec.unit_hint} 이상 우수"
     if spec.direction in ("max", "max_change") and spec.excellent_max is not None:
         return f"{spec.excellent_max:g}{spec.unit_hint} 이하 우수"
