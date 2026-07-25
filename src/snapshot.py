@@ -15,6 +15,7 @@ LEGACY_SNAPSHOT = DATA_DIR / "screener_snapshot.csv"
 
 PRICE_COLS = [
     "current_price",
+    "market_cap",
     "low_52w",
     "high_52w",
     "avg_52w",

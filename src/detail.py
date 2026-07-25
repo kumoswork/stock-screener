@@ -327,6 +327,14 @@ def detail_dialog(stock_code: str) -> None:
 
         tiles = []
         if cat_key == "주가 현위치":
+            if _has(row.get("market_cap")):
+                tiles.append(
+                    (
+                        "시가총액",
+                        format_metric_value("market_cap", row.get("market_cap")),
+                        "해당없음",
+                    )
+                )
             tiles.append(("현재가", _price(row.get("current_price")), "해당없음"))
             if _has(row.get("range_position")):
                 tiles.append(

@@ -84,7 +84,7 @@ def merge_financial_and_price(financials: pd.DataFrame, prices: pd.DataFrame) ->
     if financials.empty:
         return pd.DataFrame()
     base = financials.copy()
-    for c in ["current_price", "low_52w", "high_52w", "avg_52w", "pct_from_avg_52w", "range_position", "bottom_dwell_ratio"]:
+    for c in ["current_price", "market_cap", "low_52w", "high_52w", "avg_52w", "pct_from_avg_52w", "range_position", "bottom_dwell_ratio"]:
         if c in base.columns:
             base = base.drop(columns=[c])
     if prices is None or prices.empty:
@@ -94,6 +94,7 @@ def merge_financial_and_price(financials: pd.DataFrame, prices: pd.DataFrame) ->
         for c in [
             "stock_code",
             "current_price",
+            "market_cap",
             "low_52w",
             "high_52w",
             "avg_52w",
@@ -322,7 +323,7 @@ def format_display_df(df: pd.DataFrame) -> pd.DataFrame:
     display = df.copy()
     if "current_price" in display.columns:
         display["current_price"] = display["current_price"].apply(_format_price)
-    for col in ["revenue", "operating_profit", "net_income"]:
+    for col in ["revenue", "operating_profit", "net_income", "market_cap"]:
         if col in display.columns:
             display[col] = display[col].apply(_format_krw_big)
 
@@ -401,7 +402,7 @@ def format_metric_value(key: str, value) -> str:
     """상세/리스트 공통 표시."""
     if value is None or (isinstance(value, float) and pd.isna(value)):
         return "-"
-    if key in ("revenue", "operating_profit", "net_income", "current_price"):
+    if key in ("revenue", "operating_profit", "net_income", "market_cap", "current_price"):
         if key == "current_price":
             return _format_price(value)
         return _format_krw_big(value)

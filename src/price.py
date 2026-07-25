@@ -191,6 +191,48 @@ def _compute_one(
     return _run_with_timeout(_fetch, per_stock_timeout)
 
 
+def fetch_market_cap_map() -> dict[str, float]:
+    """KRX 상장 시가총액(원). FinanceDataReader StockListing 기준."""
+    import FinanceDataReader as fdr
+
+    out: dict[str, float] = {}
+    for market in ("KOSPI", "KOSDAQ"):
+        try:
+            df = fdr.StockListing(market)
+        except Exception:
+            continue
+        if df is None or df.empty:
+            continue
+        code_col = "Code" if "Code" in df.columns else ("Symbol" if "Symbol" in df.columns else None)
+        marcap_col = "Marcap" if "Marcap" in df.columns else None
+        if not code_col or not marcap_col:
+            continue
+        for _, row in df.iterrows():
+            code = str(row.get(code_col, "") or "").zfill(6)
+            if not code or code == "000000":
+                continue
+            try:
+                cap = float(row[marcap_col])
+            except (TypeError, ValueError):
+                continue
+            if cap > 0:
+                out[code] = cap
+    return out
+
+
+def attach_market_caps(df: pd.DataFrame, caps: dict[str, float] | None = None) -> pd.DataFrame:
+    """price_cache DataFrame에 market_cap 컬럼을 붙입니다."""
+    if df is None or df.empty:
+        return df
+    out = df.copy()
+    if "stock_code" not in out.columns:
+        return out
+    out["stock_code"] = out["stock_code"].astype(str).str.zfill(6)
+    cap_map = caps if caps is not None else fetch_market_cap_map()
+    out["market_cap"] = out["stock_code"].map(cap_map)
+    return out
+
+
 def fetch_price_metrics(
     stock_codes: list[str],
     corp_names: dict[str, str] | None = None,
@@ -241,7 +283,16 @@ def fetch_price_metrics(
                 row["corp_name"] = (corp_names or {}).get(code, "")
                 rows.append(row)
 
-    return pd.DataFrame(rows)
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return df
+    try:
+        caps = fetch_market_cap_map()
+        df = attach_market_caps(df, caps)
+    except Exception:
+        if "market_cap" not in df.columns:
+            df["market_cap"] = None
+    return df
 
 
 def save_price_metrics(df: pd.DataFrame) -> Path:
@@ -255,6 +306,7 @@ def save_price_metrics(df: pd.DataFrame) -> Path:
                 "stock_code",
                 "corp_name",
                 "current_price",
+                "market_cap",
                 "low_52w",
                 "high_52w",
                 "avg_52w",

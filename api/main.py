@@ -26,6 +26,7 @@ from criteria import (  # noqa: E402
     CATEGORY_WEIGHTS,
     FILTER_SPECS,
     MARGIN_BADGE_THRESHOLDS,
+    PRICE_ABS_KEYS,
     REVENUE_GROWTH_KEY,
     categories_order,
     score_row,
@@ -60,6 +61,7 @@ DETAIL_HELP: dict[str, str] = {
     "영업이익": "당기 영업이익",
     "당기순이익": "당기 당기순이익",
     "현재가": "최근 종가 (주가 캐시)",
+    "시가총액": "상장주식수 × 현재가 (KRX, 주가 캐시)",
     "52주위치(%)": "52주 저가~고가 구간에서 현재가 위치 (0%=저가, 100%=고가)",
     "52주 평균가": "최근 52주 종가 평균",
     "52주 저가/고가": "최근 52주 최저가 / 최고가",
@@ -219,6 +221,7 @@ def _row_list_item(r: pd.Series) -> dict[str, Any]:
         "grade_label": GRADE_UI.get(str(r.get("grade", "")), (str(r.get("grade", "")), ""))[0],
     }
     extra_cols = [
+        "market_cap",
         "current_price",
         "revenue",
         "operating_profit",
@@ -241,6 +244,7 @@ WEB_LIST_COLUMNS = [
     "chart",
     "grade",
     "attractiveness",
+    "market_cap",
     "current_price",
     "revenue",
     "operating_profit",
@@ -255,6 +259,7 @@ WEB_LIST_LABELS = {
     "grade": "등급",
     "attractiveness": "점수",
     "chart": "차트",
+    "market_cap": "시가총액",
     "current_price": "현재가",
     "revenue": "매출액",
     "operating_profit": "영업이익",
@@ -342,6 +347,7 @@ def api_screen(body: ScreenBody) -> dict[str, Any]:
 
     mode = body.mode or "filter"
     price_f: dict[str, tuple[float | None, float | None]] = {}
+    price_abs: dict[str, dict[str, Any]] = {}
     if mode == "search":
         code = str(body.code or "").zfill(6)
         if not code or code == "000000":
@@ -364,7 +370,9 @@ def api_screen(body: ScreenBody) -> dict[str, Any]:
             )
         fin_f, price_f = split_filters(raw_filters)
         candidates = apply_range_filters(view, fin_f)
-        candidates = _apply_abs(candidates, body.abs or {})
+        fin_abs = {k: v for k, v in (body.abs or {}).items() if k not in PRICE_ABS_KEYS}
+        price_abs = {k: v for k, v in (body.abs or {}).items() if k in PRICE_ABS_KEYS}
+        candidates = _apply_abs(candidates, fin_abs)
 
     warning = None
     if candidates.empty:
@@ -376,8 +384,11 @@ def api_screen(body: ScreenBody) -> dict[str, Any]:
     else:
         merged = merge_financial_and_price(candidates, prices)
 
-    if mode == "filter" and price_f:
-        merged = apply_range_filters(merged, price_f)
+    if mode == "filter":
+        if price_abs:
+            merged = _apply_abs(merged, price_abs)
+        if price_f:
+            merged = apply_range_filters(merged, price_f)
 
     scored = attach_scores(merged)
     scored = scored.sort_values("attractiveness", ascending=False, na_position="last")
@@ -439,6 +450,13 @@ def _build_detail(row: pd.Series) -> dict[str, Any]:
                     tiles.append(_tile(label, format_cell(row, key)))
         else:
             if cat_key == "주가 현위치":
+                if _has(row.get("market_cap")):
+                    tiles.append(
+                        _tile(
+                            "시가총액",
+                            format_metric_value("market_cap", row.get("market_cap")),
+                        )
+                    )
                 if _has(row.get("current_price")):
                     tiles.append(
                         _tile(
@@ -520,6 +538,7 @@ def api_detail(code: str) -> dict[str, Any]:
         if not ph.empty:
             for c in (
                 "current_price",
+                "market_cap",
                 "low_52w",
                 "high_52w",
                 "avg_52w",

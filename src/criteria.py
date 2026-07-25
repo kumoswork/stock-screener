@@ -70,7 +70,11 @@ ABS_SPECS = [
     ("revenue", "매출액"),
     ("operating_profit", "영업이익"),
     ("net_income", "당기순이익"),
+    ("market_cap", "시가총액"),
 ]
+
+# 시가총액은 주가 캐시 쪽 — 재무 필터와 분리 적용
+PRICE_ABS_KEYS = {"market_cap"}
 
 LIST_COLUMNS = [
     "corp_name",
