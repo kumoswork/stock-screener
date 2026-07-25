@@ -88,7 +88,7 @@ LIST_COLUMNS = [
     "grade",
 ]
 
-PRICE_FILTER_KEYS = {"pct_from_avg_52w", "bottom_dwell_ratio", "range_position"}
+PRICE_FILTER_KEYS = {"pct_from_avg_52w", "bottom_dwell_ratio", "range_position", "market_cap"}
 
 
 def categories_order() -> list[str]:
