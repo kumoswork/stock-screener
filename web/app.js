@@ -574,51 +574,64 @@ async function openDetail(code) {
 }
 
 async function runScreen(extra = {}) {
+  const mode = state.mode;
+  const reqId = (state.screenReqId = (state.screenReqId || 0) + 1);
   setStatus("조회 중…");
   try {
     const body = {
-      mode: state.mode,
+      mode,
       market: state.market,
       limit: 200,
       ...extra,
     };
-    if (state.mode === "filter") {
+    if (mode === "filter") {
       const { filters, abs } = collectFilters();
       body.filters = filters;
       body.abs = abs;
       persistFiltersLocal();
-    } else if (state.mode === "search") {
+    } else if (mode === "search") {
       body.code = state.selectedCode;
-    } else if (state.mode === "favorites") {
+    } else if (mode === "favorites") {
       body.codes = loadFavorites();
     }
     const data = await api("/api/screen", {
       method: "POST",
       body: JSON.stringify(body),
     });
-    renderList(data.rows || []);
+    const rows = data.rows || [];
     let msg = "";
-    if (state.mode === "favorites") msg = `즐겨찾기 ${data.count}개`;
-    else if (state.mode === "search") msg = data.count ? "1개 조회" : "결과 없음";
+    if (mode === "favorites") msg = `즐겨찾기 ${data.count}개`;
+    else if (mode === "search") msg = data.count ? "1개 조회" : "결과 없음";
     else {
       msg = `조건 충족 ${data.count}개`;
       if (data.count > data.shown) msg += ` · 상위 ${data.shown}개 표시`;
     }
     if (data.warning) msg += ` · ${data.warning}`;
-    setStatus(msg);
-    state.resultsByMode[state.mode] = {
-      rows: data.rows || [],
+    state.resultsByMode[mode] = {
+      rows: rows.slice(),
       status: msg,
     };
+    // 탭을 이미 바꿨으면 DOM/캐시는 건드리지 않음 (다른 모드 결과로 덮어쓰지 않음)
+    if (reqId !== state.screenReqId || state.mode !== mode) return;
+    renderList(rows);
+    setStatus(msg);
   } catch (err) {
+    state.resultsByMode[mode] = { rows: [], status: err.message };
+    if (reqId !== state.screenReqId || state.mode !== mode) return;
     setStatus(err.message);
     renderList([]);
-    state.resultsByMode[state.mode] = { rows: [], status: err.message };
   }
   if (isMobileLayout()) closeSidebar();
 }
 
 function setMode(mode) {
+  if (state.mode === mode) {
+    // 같은 탭 재클릭: 캐시가 있으면 유지
+    if (mode === "favorites") runScreen();
+    return;
+  }
+  // 진행 중 조회 결과를 무시하도록 무효화
+  state.screenReqId = (state.screenReqId || 0) + 1;
   state.mode = mode;
   document.querySelectorAll(".tab").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.mode === mode);
