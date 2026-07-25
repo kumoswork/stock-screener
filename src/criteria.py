@@ -67,10 +67,10 @@ FILTER_SPECS: list[FilterSpec] = [
 SPEC_BY_KEY = {s.key: s for s in FILTER_SPECS}
 
 ABS_SPECS = [
+    ("market_cap", "시가총액"),
     ("revenue", "매출액"),
     ("operating_profit", "영업이익"),
     ("net_income", "당기순이익"),
-    ("market_cap", "시가총액"),
 ]
 
 # 시가총액은 주가 캐시 쪽 — 재무 필터와 분리 적용

@@ -824,7 +824,7 @@ function wireEvents() {
               )}">${escapeHtml(it.label)} · ${escapeHtml(it.market)}</li>`
           )
           .join("");
-        setSuggestActive(0);
+        // 키보드/마우스로 고르기 전엔 하이라이트 없음
       } catch {
         box.hidden = true;
       }
