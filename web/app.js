@@ -12,6 +12,11 @@ const state = {
   selectedCode: null,
   selectedLabel: "",
   rows: [],
+  resultsByMode: {
+    filter: null,
+    search: null,
+    favorites: null,
+  },
 };
 
 function $(id) {
@@ -601,9 +606,14 @@ async function runScreen(extra = {}) {
     }
     if (data.warning) msg += ` · ${data.warning}`;
     setStatus(msg);
+    state.resultsByMode[state.mode] = {
+      rows: data.rows || [],
+      status: msg,
+    };
   } catch (err) {
     setStatus(err.message);
     renderList([]);
+    state.resultsByMode[state.mode] = { rows: [], status: err.message };
   }
   if (isMobileLayout()) closeSidebar();
 }
@@ -617,11 +627,19 @@ function setMode(mode) {
   $("panel-filter").hidden = mode !== "filter";
   $("panel-favorites").hidden = mode !== "favorites";
   $("filter-actions").hidden = mode !== "filter";
-  state.rows = [];
-  renderList([]);
+
   if (mode === "favorites") {
     runScreen();
+    return;
+  }
+
+  const cached = state.resultsByMode[mode];
+  if (cached) {
+    renderList(cached.rows);
+    setStatus(cached.status);
   } else {
+    state.rows = [];
+    renderList([]);
     setStatus("준비됨");
   }
 }
