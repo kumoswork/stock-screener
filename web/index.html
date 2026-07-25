@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>KUMO$ 종목 스크리너</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-top">
+        <div class="brand">
+          <img src="/assets/kumo_logo.png" alt="KUMO$" class="brand-logo" />
+        </div>
+        <button type="button" class="sidebar-close" id="sidebar-close" aria-label="사이드바 닫기" title="사이드바 닫기">‹</button>
+      </div>
+
+      <nav class="tabs" role="tablist">
+        <button type="button" class="tab" data-mode="search">종목 검색</button>
+        <button type="button" class="tab active" data-mode="filter">필터 검색</button>
+        <button type="button" class="tab" data-mode="favorites">즐겨찾기</button>
+      </nav>
+
+      <div class="sidebar-body" id="sidebar-body">
+        <div class="panel" id="panel-search" hidden>
+          <label class="field-label" for="stock-q">종목명 / 코드</label>
+          <input id="stock-q" type="search" placeholder="삼성전자, 005930…" autocomplete="off" />
+          <ul id="stock-suggest" class="suggest" hidden></ul>
+          <p id="stock-picked" class="picked muted"></p>
+          <button type="button" class="btn primary" id="btn-search">조회</button>
+        </div>
+
+        <div class="panel" id="panel-filter">
+          <div class="market-row">
+            <span class="field-label">시장</span>
+            <div class="seg" id="market-seg">
+              <button type="button" data-market="ALL" class="active">전체</button>
+              <button type="button" data-market="KOSPI">코스피</button>
+              <button type="button" data-market="KOSDAQ">코스닥</button>
+            </div>
+          </div>
+          <div id="abs-filters" class="filter-block"></div>
+          <div id="filter-list" class="filter-block"></div>
+        </div>
+
+        <div class="panel" id="panel-favorites" hidden>
+          <p class="muted">브라우저에 저장된 즐겨찾기 목록입니다.</p>
+        </div>
+
+        <p class="meta-cap" id="meta-cap"></p>
+      </div>
+
+      <div class="filter-actions" id="filter-actions">
+        <button type="button" class="btn" id="btn-save">필터 저장</button>
+        <button type="button" class="btn primary" id="btn-screen">스크리닝</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="main-head">
+        <button type="button" class="menu-btn" id="menu-btn" aria-label="사이드바 열기" title="필터 / 검색">☰</button>
+        <h1>종목 스크리너</h1>
+        <p class="status" id="status">준비됨</p>
+      </header>
+
+      <div class="list-wrap">
+        <div class="sticky-head desktop-only" id="list-head"></div>
+        <div id="list-body" class="list-body"></div>
+        <div id="cards-body" class="cards-body"></div>
+      </div>
+    </main>
+  </div>
+
+  <div class="overlay" id="sidebar-overlay" hidden></div>
+
+  <dialog id="detail-modal" class="detail-modal">
+    <form method="dialog" class="detail-close-row">
+      <button value="close" class="btn ghost">닫기</button>
+    </form>
+    <div id="detail-content"></div>
+  </dialog>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

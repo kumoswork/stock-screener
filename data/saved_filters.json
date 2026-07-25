@@ -1,1 +1,33 @@
-{}
+{
+  "market": "전체",
+  "search": "",
+  "enabled": [
+    "pct_from_avg_52w"
+  ],
+  "ranges": {
+    "pct_from_avg_52w": [
+      null,
+      -20.0
+    ]
+  },
+  "abs": {
+    "revenue": {
+      "on": true,
+      "lo": 1000,
+      "hi": 0,
+      "unit": "억원"
+    },
+    "operating_profit": {
+      "on": false,
+      "lo": 0,
+      "hi": 0,
+      "unit": "억원"
+    },
+    "net_income": {
+      "on": false,
+      "lo": 0,
+      "hi": 0,
+      "unit": "억원"
+    }
+  }
+}

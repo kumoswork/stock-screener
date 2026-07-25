@@ -1,0 +1,12 @@
+.venv
+venv
+__pycache__
+*.pyc
+.env
+.git
+.streamlit
+.devcontainer
+*.db
+.cache
+push.bat
+git
