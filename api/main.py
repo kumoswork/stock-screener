@@ -194,6 +194,8 @@ def _apply_abs(df: pd.DataFrame, abs_filters: dict[str, dict[str, Any]]) -> pd.D
         if key not in out.columns:
             continue
         unit = conf.get("unit") or "억원"
+        if key == "market_cap":
+            unit = "억원"
         mult = 1e8 if unit == "억원" else 1e12
         lo_raw, hi_raw = conf.get("lo"), conf.get("hi")
         lo = float(lo_raw) * mult if lo_raw is not None and lo_raw != "" else None
