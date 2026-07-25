@@ -359,25 +359,14 @@ function collectSavedFilterState() {
   };
 }
 
-async function saveFilters() {
-  const payload = collectSavedFilterState();
-  try {
-    localStorage.setItem(FILTER_KEY, JSON.stringify(payload));
-  } catch (_) {}
-  try {
-    const res = await api("/api/filters", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    setStatus(`서버에도 저장됨 (${res.where || "ok"})`);
-  } catch (err) {
-    setStatus(`브라우저는 자동 저장됨 · 서버 저장 실패: ${err.message}`);
-  }
-}
-
 function resetFilters() {
   suppressAutosave = true;
   try {
+    state.market = "ALL";
+    $("market-seg").querySelectorAll("button").forEach((b) => {
+      b.classList.toggle("active", b.dataset.market === "ALL");
+    });
+
     document.querySelectorAll("#filter-list [data-f-on]").forEach((chk) => {
       chk.checked = false;
       const row = chk.closest(".filter-row");
@@ -388,18 +377,34 @@ function resetFilters() {
       const row = chk.closest(".filter-row");
       if (row) row.classList.remove("on");
     });
+    document.querySelectorAll("#abs-filters [data-abs-lo]").forEach((el) => {
+      el.value = "";
+    });
+    document.querySelectorAll("#abs-filters [data-abs-unit]").forEach((el) => {
+      el.value = "억원";
+    });
     if (!state.meta) return;
     for (const spec of state.meta.filter_specs) {
       const { lo, hi } = defaultBounds(spec);
       const minEl = document.querySelector(`[data-f-min="${CSS.escape(spec.key)}"]`);
       const maxEl = document.querySelector(`[data-f-max="${CSS.escape(spec.key)}"]`);
-      if (minEl && lo != null) minEl.value = lo;
-      if (maxEl && hi != null) maxEl.value = hi;
+      if (minEl) minEl.value = lo != null ? lo : "";
+      if (maxEl) maxEl.value = hi != null ? hi : "";
     }
   } finally {
     suppressAutosave = false;
-    scheduleAutosaveFilters();
+    persistFiltersLocal();
   }
+}
+
+function confirmResetFilters() {
+  const ok = window.confirm("필터를 모두 초기화할까요?\n체크·수치·시장 설정이 기본값으로 돌아갑니다.");
+  if (!ok) return;
+  resetFilters();
+  state.resultsByMode.filter = null;
+  state.rows = [];
+  renderList([]);
+  setStatus("필터가 초기화되었습니다.");
 }
 
 function gradeBadge(grade, label) {
@@ -673,7 +678,7 @@ function wireEvents() {
   });
 
   $("btn-screen").addEventListener("click", () => runScreen());
-  $("btn-save").addEventListener("click", () => saveFilters());
+  $("btn-reset").addEventListener("click", () => confirmResetFilters());
   $("btn-search").addEventListener("click", () => {
     if (!state.selectedCode) {
       setStatus("종목을 선택하세요.");
