@@ -1,5 +1,8 @@
 /* KUMO$ screener SPA */
 const FAV_KEY = "kumo_favorites";
+const FILTER_KEY = "kumo_filters";
+let autosaveTimer = null;
+let suppressAutosave = false;
 const GRADE_CLASS = { A: "hot", B: "watch", C: "neutral", D: "warn" };
 
 const state = {
@@ -212,17 +215,23 @@ function buildFiltersUI(meta) {
 
   listRoot.addEventListener("change", (e) => {
     const t = e.target;
-    if (!(t instanceof HTMLInputElement) || t.type !== "checkbox" || !t.dataset.fOn) return;
-    const row = listRoot.querySelector(`[data-key="${CSS.escape(t.dataset.fOn)}"]`);
-    if (row) row.classList.toggle("on", t.checked);
+    if (t instanceof HTMLInputElement && t.type === "checkbox" && t.dataset.fOn) {
+      const row = listRoot.querySelector(`[data-key="${CSS.escape(t.dataset.fOn)}"]`);
+      if (row) row.classList.toggle("on", t.checked);
+    }
+    scheduleAutosaveFilters();
   });
+  listRoot.addEventListener("input", () => scheduleAutosaveFilters());
 
   absRoot.addEventListener("change", (e) => {
     const t = e.target;
-    if (!(t instanceof HTMLInputElement) || t.type !== "checkbox" || !t.dataset.abs) return;
-    const row = absRoot.querySelector(`[data-abs-key="${CSS.escape(t.dataset.abs)}"]`);
-    if (row) row.classList.toggle("on", t.checked);
+    if (t instanceof HTMLInputElement && t.type === "checkbox" && t.dataset.abs) {
+      const row = absRoot.querySelector(`[data-abs-key="${CSS.escape(t.dataset.abs)}"]`);
+      if (row) row.classList.toggle("on", t.checked);
+    }
+    scheduleAutosaveFilters();
   });
+  absRoot.addEventListener("input", () => scheduleAutosaveFilters());
 }
 
 function collectFilters() {
@@ -265,43 +274,60 @@ function marketFromSaved(label) {
 
 function applySavedFilters(saved) {
   if (!saved || !state.meta) return;
+  suppressAutosave = true;
+  try {
+    if (saved.market) {
+      state.market = marketFromSaved(saved.market);
+      $("market-seg").querySelectorAll("button").forEach((b) => {
+        b.classList.toggle("active", b.dataset.market === state.market);
+      });
+    }
 
-  if (saved.market) {
-    state.market = marketFromSaved(saved.market);
-    $("market-seg").querySelectorAll("button").forEach((b) => {
-      b.classList.toggle("active", b.dataset.market === state.market);
-    });
-  }
+    const enabled = new Set(saved.enabled || []);
+    const ranges = saved.ranges || {};
+    for (const spec of state.meta.filter_specs) {
+      const chk = document.querySelector(`[data-f-on="${CSS.escape(spec.key)}"]`);
+      const row = document.querySelector(`[data-key="${CSS.escape(spec.key)}"]`);
+      if (!chk || !row) continue;
+      const on = enabled.has(spec.key);
+      chk.checked = on;
+      row.classList.toggle("on", on);
+      const bounds = ranges[spec.key] || [];
+      const minEl = document.querySelector(`[data-f-min="${CSS.escape(spec.key)}"]`);
+      const maxEl = document.querySelector(`[data-f-max="${CSS.escape(spec.key)}"]`);
+      if (minEl && bounds[0] != null) minEl.value = bounds[0];
+      if (maxEl && bounds[1] != null) maxEl.value = bounds[1];
+    }
 
-  const enabled = new Set(saved.enabled || []);
-  const ranges = saved.ranges || {};
-  for (const spec of state.meta.filter_specs) {
-    const chk = document.querySelector(`[data-f-on="${CSS.escape(spec.key)}"]`);
-    const row = document.querySelector(`[data-key="${CSS.escape(spec.key)}"]`);
-    if (!chk || !row) continue;
-    const on = enabled.has(spec.key);
-    chk.checked = on;
-    row.classList.toggle("on", on);
-    const bounds = ranges[spec.key] || [];
-    const minEl = document.querySelector(`[data-f-min="${CSS.escape(spec.key)}"]`);
-    const maxEl = document.querySelector(`[data-f-max="${CSS.escape(spec.key)}"]`);
-    if (minEl && bounds[0] != null) minEl.value = bounds[0];
-    if (maxEl && bounds[1] != null) maxEl.value = bounds[1];
+    for (const a of state.meta.abs_specs) {
+      const conf = (saved.abs || {})[a.key] || {};
+      const chk = document.querySelector(`[data-abs="${CSS.escape(a.key)}"]`);
+      const row = document.querySelector(`[data-abs-key="${CSS.escape(a.key)}"]`);
+      if (!chk || !row) continue;
+      const on = !!conf.on;
+      chk.checked = on;
+      row.classList.toggle("on", on);
+      const loEl = document.querySelector(`[data-abs-lo="${CSS.escape(a.key)}"]`);
+      const unitEl = document.querySelector(`[data-abs-unit="${CSS.escape(a.key)}"]`);
+      if (loEl && conf.lo != null) loEl.value = conf.lo;
+      if (unitEl && conf.unit) unitEl.value = conf.unit;
+    }
+  } finally {
+    suppressAutosave = false;
   }
+}
 
-  for (const a of state.meta.abs_specs) {
-    const conf = (saved.abs || {})[a.key] || {};
-    const chk = document.querySelector(`[data-abs="${CSS.escape(a.key)}"]`);
-    const row = document.querySelector(`[data-abs-key="${CSS.escape(a.key)}"]`);
-    if (!chk || !row) continue;
-    const on = !!conf.on;
-    chk.checked = on;
-    row.classList.toggle("on", on);
-    const loEl = document.querySelector(`[data-abs-lo="${CSS.escape(a.key)}"]`);
-    const unitEl = document.querySelector(`[data-abs-unit="${CSS.escape(a.key)}"]`);
-    if (loEl && conf.lo != null) loEl.value = conf.lo;
-    if (unitEl && conf.unit) unitEl.value = conf.unit;
-  }
+function persistFiltersLocal() {
+  if (!state.meta) return;
+  try {
+    localStorage.setItem(FILTER_KEY, JSON.stringify(collectSavedFilterState()));
+  } catch (_) {}
+}
+
+function scheduleAutosaveFilters() {
+  if (suppressAutosave) return;
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(persistFiltersLocal, 250);
 }
 
 function collectSavedFilterState() {
@@ -331,37 +357,43 @@ function collectSavedFilterState() {
 async function saveFilters() {
   const payload = collectSavedFilterState();
   try {
-    localStorage.setItem("kumo_filters", JSON.stringify(payload));
+    localStorage.setItem(FILTER_KEY, JSON.stringify(payload));
   } catch (_) {}
   try {
     const res = await api("/api/filters", {
       method: "POST",
       body: JSON.stringify(payload),
     });
-    setStatus(`필터 저장됨 (${res.where || "local"})`);
+    setStatus(`서버에도 저장됨 (${res.where || "ok"})`);
   } catch (err) {
-    setStatus(`로컬에만 저장됨 · ${err.message}`);
+    setStatus(`브라우저는 자동 저장됨 · 서버 저장 실패: ${err.message}`);
   }
 }
 
 function resetFilters() {
-  document.querySelectorAll("#filter-list [data-f-on]").forEach((chk) => {
-    chk.checked = false;
-    const row = chk.closest(".filter-row");
-    if (row) row.classList.remove("on");
-  });
-  document.querySelectorAll("#abs-filters [data-abs]").forEach((chk) => {
-    chk.checked = false;
-    const row = chk.closest(".filter-row");
-    if (row) row.classList.remove("on");
-  });
-  if (!state.meta) return;
-  for (const spec of state.meta.filter_specs) {
-    const { lo, hi } = defaultBounds(spec);
-    const minEl = document.querySelector(`[data-f-min="${CSS.escape(spec.key)}"]`);
-    const maxEl = document.querySelector(`[data-f-max="${CSS.escape(spec.key)}"]`);
-    if (minEl && lo != null) minEl.value = lo;
-    if (maxEl && hi != null) maxEl.value = hi;
+  suppressAutosave = true;
+  try {
+    document.querySelectorAll("#filter-list [data-f-on]").forEach((chk) => {
+      chk.checked = false;
+      const row = chk.closest(".filter-row");
+      if (row) row.classList.remove("on");
+    });
+    document.querySelectorAll("#abs-filters [data-abs]").forEach((chk) => {
+      chk.checked = false;
+      const row = chk.closest(".filter-row");
+      if (row) row.classList.remove("on");
+    });
+    if (!state.meta) return;
+    for (const spec of state.meta.filter_specs) {
+      const { lo, hi } = defaultBounds(spec);
+      const minEl = document.querySelector(`[data-f-min="${CSS.escape(spec.key)}"]`);
+      const maxEl = document.querySelector(`[data-f-max="${CSS.escape(spec.key)}"]`);
+      if (minEl && lo != null) minEl.value = lo;
+      if (maxEl && hi != null) maxEl.value = hi;
+    }
+  } finally {
+    suppressAutosave = false;
+    scheduleAutosaveFilters();
   }
 }
 
@@ -549,6 +581,7 @@ async function runScreen(extra = {}) {
       const { filters, abs } = collectFilters();
       body.filters = filters;
       body.abs = abs;
+      persistFiltersLocal();
     } else if (state.mode === "search") {
       body.code = state.selectedCode;
     } else if (state.mode === "favorites") {
@@ -605,6 +638,7 @@ function wireEvents() {
     $("market-seg").querySelectorAll("button").forEach((b) => {
       b.classList.toggle("active", b === btn);
     });
+    scheduleAutosaveFilters();
   });
 
   $("btn-screen").addEventListener("click", () => runScreen());
@@ -778,12 +812,13 @@ async function init() {
     state.meta = meta;
     buildFiltersUI(meta);
     renderListHead(meta);
-    let saved = meta.saved_filters;
+    let saved = null;
+    try {
+      const raw = localStorage.getItem(FILTER_KEY);
+      if (raw) saved = JSON.parse(raw);
+    } catch (_) {}
     if (!saved || !Object.keys(saved).length) {
-      try {
-        const raw = localStorage.getItem("kumo_filters");
-        if (raw) saved = JSON.parse(raw);
-      } catch (_) {}
+      saved = meta.saved_filters;
     }
     applySavedFilters(saved);
     $("meta-cap").textContent = [
