@@ -14,4 +14,4 @@ COPY assets ./assets
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8000
 
-CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port $PORT"]
+CMD ["python", "-m", "api.run"]
