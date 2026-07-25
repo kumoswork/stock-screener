@@ -30,16 +30,16 @@ FILTER_SPECS: list[FilterSpec] = [
     # B경제
     FilterSpec("cash_survival_years", "현금 생존력", "B경제", "(현금+단기금융)/순손실 = 버틸 연수", "min", 2.0, None, True, "년"),
     FilterSpec("inventory_months", "재고 보유 월수", "B경제", "재고/매출원가(월) = 현금흐름 압박", "max", None, 3.0, False, "개월"),
-    FilterSpec("cash_flow_match", "현금흐름일치", "B경제", "영업CF/당기순이익 = 이익의 질", "min", 1.0, None, True, "배"),
+    FilterSpec("cash_flow_match", "현금흐름일치", "B경제", "영업CF/당기순이익 = 이익의 질 (흑자만 점수 반영)", "min", 1.0, None, True, "배"),
     FilterSpec("sga_ratio_change", "판관비 전년비", "B경제", "판관비÷매출 비율의 전년 대비 변화(%p, 감소=개선)", "max_change", None, 0.0, False, "%p"),
     # 안전성
     FilterSpec("current_ratio", "유동비율", "안전성 check!", "유동자산/유동부채", "min", 100.0, None, True, "%"),
     FilterSpec("quick_ratio", "당좌비율", "안전성 check!", "(유동자산-재고)/유동부채", "min", 100.0, None, True, "%"),
-    FilterSpec("debt_ratio", "부채비율", "안전성 check!", "부채총액/자본총액 (50~200% 우수)", "range", 50.0, 200.0, True, "%"),
+    FilterSpec("debt_ratio", "부채비율", "안전성 check!", "부채총액/자본총액 (50~200% 우수, 50% 미만은 중립)", "range", 50.0, 200.0, True, "%"),
     FilterSpec("cash_months", "현금규모(개월)", "안전성 check!", "현금성자산/월 판관비", "min", 12.0, None, True, "개월"),
     # 수익/성장 — 매출성장: 0%↑양호, 40%↑우수, 80%↑매우우수
     FilterSpec("revenue_growth", "매출성장율", "수익/성장성 check!", "(당기-전기)매출/전기 · 0%↑양호 · 40%↑우수 · 80%↑매우우수", "min", 40.0, None, True, "%"),
-    FilterSpec("gross_margin", "매출총이익율", "수익/성장성 check!", "매출총이익/매출 · 20%↑양호 · 40%↑우수", "min", 40.0, None, True, "%"),
+    FilterSpec("gross_margin", "매출총이익율", "수익/성장성 check!", "매출총이익/매출 · 20%↑양호 · 30%↑우수", "min", 30.0, None, True, "%"),
     FilterSpec("operating_margin", "영업이익률", "수익/성장성 check!", "영업이익/매출 · 5%↑양호 · 10%↑우수", "min", 10.0, None, True, "%"),
     FilterSpec("net_margin", "당기순이익율", "수익/성장성 check!", "당기순이익/매출 · 3%↑양호 · 8%↑우수", "min", 8.0, None, True, "%"),
     # 효율
@@ -49,8 +49,18 @@ FILTER_SPECS: list[FilterSpec] = [
     FilterSpec("receivable_turnover", "매출채권회전", "효율성 check!", "매출/매출채권", "min", 10.0, None, True, "회"),
     # check!!
     FilterSpec("revenue_minus_debt_growth", "매출−부채증가", "check!!", "매출성장이 부채성장 이상", "min", 0.0, None, True, "%p"),
-    # 주가
-    FilterSpec("pct_from_avg_52w", "52주평균대비", "주가 현위치", "현재가 ÷ 52주 평균종가 - 1 (낮을수록)", "max", None, -20.0, False, "%"),
+    # 주가 — 저평가는 가산, 과도한 낙폭은 감점
+    FilterSpec(
+        "pct_from_avg_52w",
+        "52주평균대비",
+        "주가 현위치",
+        "현재가÷52주평균-1 · -35~-20% 우수 · -40%↓ 낙폭과다 감점",
+        "max",
+        None,
+        -20.0,
+        False,
+        "%",
+    ),
     FilterSpec("bottom_dwell_ratio", "바닥체류", "주가 현위치", "바닥권 체류 비율 (높을수록)", "min", 50.0, None, True, "%"),
 ]
 
@@ -94,16 +104,60 @@ REVENUE_GROWTH_KEY = "revenue_growth"
 
 # 이익률 뱃지: (양호, 우수, 매우우수) — 필터 기본값은 우수
 MARGIN_BADGE_THRESHOLDS: dict[str, tuple[float, float, float]] = {
-    "gross_margin": (20.0, 40.0, 60.0),      # 20↑양호, 40↑우수, 60↑매우우수
-    "operating_margin": (5.0, 10.0, 20.0),   # 5↑양호, 10↑우수, 20↑매우우수
-    "net_margin": (3.0, 8.0, 15.0),          # 3↑양호, 8↑우수, 15↑매우우수
+    "gross_margin": (20.0, 30.0, 50.0),  # 20↑양호, 30↑우수, 50↑매우우수
+    "operating_margin": (5.0, 10.0, 20.0),  # 5↑양호, 10↑우수, 20↑매우우수
+    "net_margin": (3.0, 8.0, 15.0),  # 3↑양호, 8↑우수, 15↑매우우수
+}
+
+# 재고/채권 이상치 → 점수에서 제외
+_OUTLIER_KEYS = {
+    "inventory_months": (-0.01, 120.0),
+    "inventory_turnover": (0.0, 200.0),
+    "receivable_turnover": (0.0, 200.0),
 }
 
 
-def badge_for_value(spec: FilterSpec, value: float | None) -> str:
+def _row_get(row: pd.Series | dict[str, Any] | None, key: str) -> Any:
+    if row is None:
+        return None
+    if hasattr(row, "get"):
+        return row.get(key)
+    try:
+        return row[key]
+    except Exception:
+        return None
+
+
+def _as_float(val: Any) -> float | None:
+    try:
+        if val is None or (isinstance(val, float) and pd.isna(val)):
+            return None
+        return float(val)
+    except (TypeError, ValueError):
+        return None
+
+
+def badge_for_value(
+    spec: FilterSpec,
+    value: float | None,
+    row: pd.Series | dict[str, Any] | None = None,
+) -> str:
     """우수 / 매우우수 / 보통(양호) / 주의 / 위험 / 해당없음"""
     if value is None or (isinstance(value, float) and pd.isna(value)):
         return "해당없음"
+
+    # 현금흐름일치: 적자·순이익 없음은 점수 제외
+    if spec.key == "cash_flow_match":
+        ni = _as_float(_row_get(row, "net_income"))
+        if ni is None or ni <= 0:
+            return "해당없음"
+
+    # 재고·매출채권 이상치 제외
+    bounds = _OUTLIER_KEYS.get(spec.key)
+    if bounds is not None:
+        lo, hi = bounds
+        if value <= lo or value > hi:
+            return "해당없음"
 
     # 매출성장율: 0%↑ 양호, 40%↑ 우수, 80%↑ 매우우수
     if spec.key == REVENUE_GROWTH_KEY:
@@ -130,7 +184,25 @@ def badge_for_value(spec: FilterSpec, value: float | None) -> str:
             return "주의"
         return "위험"
 
-    # range (debt)
+    # 52주평균대비: 저평가 가산 + 낙폭 과다 감점
+    if spec.key == "pct_from_avg_52w":
+        if value <= -50:
+            return "위험"
+        if value <= -40:
+            return "주의"
+        if value < -35:
+            return "우수"
+        if value <= -20:
+            return "매우우수"
+        if value <= -10:
+            return "우수"
+        if value <= 0:
+            return "보통"
+        if value <= 15:
+            return "주의"
+        return "위험"
+
+    # range (debt): 50~200 우수, 200↑ 위험, 50↓ 중립
     if spec.direction == "range":
         lo, hi = spec.excellent_min, spec.excellent_max
         if lo is not None and hi is not None:
@@ -138,7 +210,7 @@ def badge_for_value(spec: FilterSpec, value: float | None) -> str:
                 return "우수"
             if value > hi:
                 return "위험"
-            return "주의"  # below 50%
+            return "보통"  # below 50% — 감점하지 않음
 
     # max_change (sga decrease = good if value <= 0)
     if spec.direction == "max_change":
@@ -148,7 +220,9 @@ def badge_for_value(spec: FilterSpec, value: float | None) -> str:
             return "우수"
         if value <= 5:
             return "보통"
-        return "주의"
+        if value <= 10:
+            return "주의"
+        return "위험"
 
     if spec.higher_better:
         exc = spec.excellent_min
@@ -202,14 +276,14 @@ BADGE_COLOR = {
     "해당없음": "⬛",
 }
 
-# 카테고리 가중치 (합=1.0). 지표 개수와 무관하게 카테고리 단위로 반영.
+# 카테고리 가중치 (합=1.0). 주가 비중↓ · 펀더멘털 비중↑
 CATEGORY_WEIGHTS: dict[str, float] = {
-    "수익/성장성 check!": 0.25,
-    "안전성 check!": 0.20,
-    "효율성 check!": 0.15,
-    "B경제": 0.15,
-    "주가 현위치": 0.15,
-    "check!!": 0.10,
+    "수익/성장성 check!": 0.28,
+    "안전성 check!": 0.23,
+    "효율성 check!": 0.18,
+    "B경제": 0.18,
+    "주가 현위치": 0.08,
+    "check!!": 0.05,
 }
 
 CATEGORY_LABELS: dict[str, str] = {
@@ -241,7 +315,7 @@ def score_row(row: pd.Series | dict[str, Any]) -> dict[str, Any]:
                 val = None
         except (TypeError, ValueError):
             val = None
-        badge = badge_for_value(spec, val)
+        badge = badge_for_value(spec, val, row)
         badges[spec.key] = badge
         if badge != "해당없음":
             cat_badge_sums[spec.category] += BADGE_SCORE[badge]
