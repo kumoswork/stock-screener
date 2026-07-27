@@ -1070,11 +1070,55 @@ function clearTrendLines() {
   if (host) renderTrendLines(host);
 }
 
+function extendTrendToRight(a, b, width, height) {
+  // A,B를 지나는 직선을 화면 오른쪽(및 필요 시 상·하단)까지 연장
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 0.001) {
+    return { x1: a.x, y1: a.y, x2: Math.max(a.x, width), y2: a.y };
+  }
+  // 화면 오른쪽(+x) 방향으로 향하도록
+  let ux = dx / len;
+  let uy = dy / len;
+  if (ux < 0) {
+    ux = -ux;
+    uy = -uy;
+  } else if (Math.abs(ux) < 1e-9) {
+    // 수직에 가까우면 위/아래 중 B쪽 방향 유지, 오른쪽 끝은 x 고정
+    return {
+      x1: a.x,
+      y1: Math.min(a.y, b.y, 0),
+      x2: a.x,
+      y2: Math.max(a.y, b.y, height),
+    };
+  }
+
+  const start = a.x <= b.x ? a : b;
+  let tMax = Infinity;
+  if (ux > 1e-9) tMax = Math.min(tMax, (width + 2 - start.x) / ux);
+  if (uy > 1e-9) tMax = Math.min(tMax, (height + 2 - start.y) / uy);
+  if (uy < -1e-9) tMax = Math.min(tMax, (0 - 2 - start.y) / uy);
+  if (!Number.isFinite(tMax) || tMax < 1) {
+    // 최소한 B를 지나도록, 그래도 짧게면 화면 너비만큼
+    tMax = Math.max(tMax || 0, len, width);
+  }
+
+  return {
+    x1: start.x,
+    y1: start.y,
+    x2: start.x + ux * tMax,
+    y2: start.y + uy * tMax,
+  };
+}
+
 function renderTrendLines(host) {
   const svg = ensureOverlaySvg(host, "trend-line-svg");
   svg.innerHTML = "";
   if (!_detailChartApi || !_detailCandleSeries) return;
   const ts = _detailChartApi.timeScale();
+  const width = host.clientWidth || svg.clientWidth || 0;
+  const height = host.clientHeight || svg.clientHeight || 0;
   const toXY = (time, price) => {
     const x = ts.timeToCoordinate(time);
     const y = _detailCandleSeries.priceToCoordinate(price);
@@ -1085,11 +1129,12 @@ function renderTrendLines(host) {
     const a = toXY(line.t1, line.p1);
     const b = toXY(line.t2, line.p2);
     if (!a || !b) continue;
+    const ext = extendTrendToRight(a, b, width, height);
     const el = document.createElementNS("http://www.w3.org/2000/svg", "line");
-    el.setAttribute("x1", a.x);
-    el.setAttribute("y1", a.y);
-    el.setAttribute("x2", b.x);
-    el.setAttribute("y2", b.y);
+    el.setAttribute("x1", ext.x1);
+    el.setAttribute("y1", ext.y1);
+    el.setAttribute("x2", ext.x2);
+    el.setAttribute("y2", ext.y2);
     el.setAttribute("class", "trend-line");
     svg.appendChild(el);
     for (const p of [a, b]) {
