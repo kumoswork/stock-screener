@@ -1593,6 +1593,26 @@ function wireEvents() {
     runScreen();
   }
 
+  function clearStockSearchField() {
+    const q = $("stock-q");
+    if (!q.value && !state.selectedCode) return;
+    q.value = "";
+    state.selectedCode = null;
+    state.selectedLabel = "";
+    $("stock-picked").textContent = "";
+    $("stock-suggest").hidden = true;
+    $("stock-suggest").innerHTML = "";
+    suggestIndex = -1;
+  }
+
+  $("stock-q").addEventListener("focus", () => {
+    clearStockSearchField();
+  });
+  $("stock-q").addEventListener("pointerdown", () => {
+    // 이미 포커스된 상태에서 다시 눌러도 비움
+    if (document.activeElement === $("stock-q")) clearStockSearchField();
+  });
+
   $("stock-q").addEventListener("input", () => {
     clearTimeout(suggestTimer);
     suggestIndex = -1;
