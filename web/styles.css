@@ -690,6 +690,36 @@ input:focus {
   border-color: var(--accent);
   background: rgba(23, 133, 163, 0.35);
 }
+.d-chart-tools {
+  display: inline-flex;
+  gap: 0.2rem;
+  flex: 0 0 auto;
+  margin-left: 0.25rem;
+}
+.d-chart-tools button {
+  appearance: none;
+  border: 1px solid #4a5568;
+  background: #262b33;
+  color: #9aa3b5;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.18rem 0.55rem;
+  cursor: pointer;
+}
+.d-chart-tools button.active,
+.d-chart-tools button:hover {
+  color: #fff;
+  border-color: #f2a93b;
+  background: rgba(242, 169, 59, 0.28);
+}
+.trend-hint {
+  margin: -0.35rem 0 0.45rem;
+  font-size: 0.75rem;
+  color: #f2a93b;
+  font-weight: 650;
+}
 .d-chart {
   width: 100%;
   height: min(420px, 52vh);
@@ -700,13 +730,36 @@ input:focus {
   background: #1c2027;
   position: relative;
 }
-.d-chart .ichi-cloud-svg {
+.d-chart.trend-draw-on {
+  cursor: crosshair;
+  border-color: rgba(242, 169, 59, 0.65);
+}
+.d-chart .ichi-cloud-svg,
+.d-chart .trend-line-svg {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   pointer-events: none;
   z-index: 2;
+}
+.d-chart .trend-line-svg {
+  z-index: 3;
+}
+.d-chart .trend-line {
+  stroke: #ffe566;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+.d-chart .trend-dot {
+  fill: #ffe566;
+  stroke: #1c2027;
+  stroke-width: 1;
+}
+.d-chart .trend-draft {
+  fill: #f2a93b;
+  stroke: #fff;
+  stroke-width: 1.5;
 }
 .d-chart-msg {
   margin: 0;

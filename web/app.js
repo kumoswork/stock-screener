@@ -828,7 +828,11 @@ let _detailBars = null;
 let _detailTf = "M";
 let _detailChartRo = null;
 let _detailCloudUnsub = null;
+let _detailClickUnsub = null;
 let _lwChartsPromise = null;
+let _trendMode = false;
+let _trendDraft = null;
+let _trendLines = [];
 
 function clearDetailChart() {
   const host = document.getElementById("detail-chart");
@@ -837,6 +841,12 @@ function clearDetailChart() {
       _detailCloudUnsub();
     } catch (_) {}
     _detailCloudUnsub = null;
+  }
+  if (_detailClickUnsub) {
+    try {
+      _detailClickUnsub();
+    } catch (_) {}
+    _detailClickUnsub = null;
   }
   if (_detailChartApi) {
     try {
@@ -848,6 +858,9 @@ function clearDetailChart() {
   _detailIchi = null;
   _detailBars = null;
   _detailTf = "M";
+  _trendMode = false;
+  _trendDraft = null;
+  _trendLines = [];
   if (_detailChartRo) {
     try {
       _detailChartRo.disconnect();
@@ -995,14 +1008,140 @@ function computeIchimoku(candles, tf) {
   return { tenkan, kijun, spanA, spanB, chikou, cloud };
 }
 
-function ensureIchimokuCloudSvg(host) {
-  let svg = host.querySelector(".ichi-cloud-svg");
+function ensureOverlaySvg(host, className) {
+  let svg = host.querySelector(`svg.${className}`);
   if (!svg) {
     svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    svg.setAttribute("class", "ichi-cloud-svg");
+    svg.setAttribute("class", className);
     host.appendChild(svg);
   }
   return svg;
+}
+
+function ensureIchimokuCloudSvg(host) {
+  return ensureOverlaySvg(host, "ichi-cloud-svg");
+}
+
+function normalizeChartTime(t) {
+  if (t == null) return null;
+  if (typeof t === "string") return t;
+  if (typeof t === "object" && t.year != null) {
+    return `${t.year}-${String(t.month).padStart(2, "0")}-${String(t.day).padStart(2, "0")}`;
+  }
+  if (typeof t === "number") {
+    const d = new Date(t * 1000);
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(d.getUTCDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+  return null;
+}
+
+function updateTrendHint() {
+  const hint = document.getElementById("trend-hint");
+  if (!hint) return;
+  if (!_trendMode) {
+    hint.hidden = true;
+    hint.textContent = "";
+    return;
+  }
+  hint.hidden = false;
+  hint.textContent = _trendDraft
+    ? "끝점을 클릭하세요 · Esc 취소"
+    : "시작점을 클릭하세요 · Esc 끄기";
+}
+
+function setTrendMode(on) {
+  _trendMode = !!on;
+  if (!_trendMode) _trendDraft = null;
+  document.querySelector("[data-trend-draw]")?.classList.toggle("active", _trendMode);
+  document.getElementById("detail-chart")?.classList.toggle("trend-draw-on", _trendMode);
+  updateTrendHint();
+  const host = document.getElementById("detail-chart");
+  if (host) renderTrendLines(host);
+}
+
+function clearTrendLines() {
+  _trendLines = [];
+  _trendDraft = null;
+  updateTrendHint();
+  const host = document.getElementById("detail-chart");
+  if (host) renderTrendLines(host);
+}
+
+function renderTrendLines(host) {
+  const svg = ensureOverlaySvg(host, "trend-line-svg");
+  svg.innerHTML = "";
+  if (!_detailChartApi || !_detailCandleSeries) return;
+  const ts = _detailChartApi.timeScale();
+  const toXY = (time, price) => {
+    const x = ts.timeToCoordinate(time);
+    const y = _detailCandleSeries.priceToCoordinate(price);
+    if (x == null || y == null) return null;
+    return { x, y };
+  };
+  for (const line of _trendLines) {
+    const a = toXY(line.t1, line.p1);
+    const b = toXY(line.t2, line.p2);
+    if (!a || !b) continue;
+    const el = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    el.setAttribute("x1", a.x);
+    el.setAttribute("y1", a.y);
+    el.setAttribute("x2", b.x);
+    el.setAttribute("y2", b.y);
+    el.setAttribute("class", "trend-line");
+    svg.appendChild(el);
+    for (const p of [a, b]) {
+      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      c.setAttribute("cx", p.x);
+      c.setAttribute("cy", p.y);
+      c.setAttribute("r", "3.5");
+      c.setAttribute("class", "trend-dot");
+      svg.appendChild(c);
+    }
+  }
+  if (_trendDraft) {
+    const p = toXY(_trendDraft.time, _trendDraft.price);
+    if (p) {
+      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      c.setAttribute("cx", p.x);
+      c.setAttribute("cy", p.y);
+      c.setAttribute("r", "4.5");
+      c.setAttribute("class", "trend-draft");
+      svg.appendChild(c);
+    }
+  }
+}
+
+function redrawChartOverlays(host) {
+  if (!host) host = document.getElementById("detail-chart");
+  if (!host) return;
+  renderIchimokuCloud(host, _detailIchi?.cloud || []);
+  renderTrendLines(host);
+}
+
+function onDetailChartClick(param) {
+  if (!_trendMode || !_detailChartApi || !_detailCandleSeries || !param?.point) return;
+  const price = _detailCandleSeries.coordinateToPrice(param.point.y);
+  let time = _detailChartApi.timeScale().coordinateToTime(param.point.x);
+  if (time == null && param.time != null) time = param.time;
+  time = normalizeChartTime(time);
+  if (price == null || !Number.isFinite(price) || time == null) return;
+
+  if (!_trendDraft) {
+    _trendDraft = { time, price };
+  } else {
+    _trendLines.push({
+      t1: _trendDraft.time,
+      p1: _trendDraft.price,
+      t2: time,
+      p2: price,
+    });
+    _trendDraft = null;
+  }
+  updateTrendHint();
+  redrawChartOverlays();
 }
 
 function renderIchimokuCloud(host, cloud) {
@@ -1058,10 +1197,7 @@ function applyDetailChartTf(tf) {
   _detailIchi.chikou.setData(ichi.chikou);
   _detailIchi.cloud = ichi.cloud;
   if (_detailChartApi && data.length) _detailChartApi.timeScale().fitContent();
-  const host = document.getElementById("detail-chart");
-  if (host) {
-    requestAnimationFrame(() => renderIchimokuCloud(host, ichi.cloud));
-  }
+  requestAnimationFrame(() => redrawChartOverlays());
 }
 
 async function mountDetailChart(code) {
@@ -1140,18 +1276,25 @@ async function mountDetailChart(code) {
     };
     _detailChartApi = chart;
     _detailCandleSeries = series;
-    const redrawCloud = () => renderIchimokuCloud(host, _detailIchi?.cloud || []);
-    chart.timeScale().subscribeVisibleLogicalRangeChange(redrawCloud);
+    const redraw = () => redrawChartOverlays(host);
+    chart.timeScale().subscribeVisibleLogicalRangeChange(redraw);
     _detailCloudUnsub = () => {
       try {
-        chart.timeScale().unsubscribeVisibleLogicalRangeChange(redrawCloud);
+        chart.timeScale().unsubscribeVisibleLogicalRangeChange(redraw);
+      } catch (_) {}
+    };
+    const onClick = (param) => onDetailChartClick(param);
+    chart.subscribeClick(onClick);
+    _detailClickUnsub = () => {
+      try {
+        chart.unsubscribeClick(onClick);
       } catch (_) {}
     };
     applyDetailChartTf(_detailTf || "M");
     _detailChartRo = new ResizeObserver(() => {
       try {
         chart.applyOptions({ width: host.clientWidth, height: host.clientHeight });
-        redrawCloud();
+        redraw();
       } catch (_) {}
     });
     _detailChartRo.observe(host);
@@ -1233,7 +1376,12 @@ async function openDetail(code) {
             <button type="button" data-chart-tf="W">주</button>
             <button type="button" class="active" data-chart-tf="M">월</button>
           </div>
+          <div class="d-chart-tools" role="group" aria-label="차트 도구">
+            <button type="button" data-trend-draw title="추세선 그리기">추세선</button>
+            <button type="button" data-trend-clear title="추세선 모두 지우기">지우기</button>
+          </div>
         </div>
+        <p id="trend-hint" class="trend-hint" hidden></p>
         <div id="detail-chart" class="d-chart" aria-label="주가 차트"></div>
       </section>
       ${sections}
@@ -1242,6 +1390,12 @@ async function openDetail(code) {
       const btn = e.target.closest("[data-chart-tf]");
       if (!btn) return;
       applyDetailChartTf(btn.dataset.chartTf);
+    });
+    box.querySelector("[data-trend-draw]")?.addEventListener("click", () => {
+      setTrendMode(!_trendMode);
+    });
+    box.querySelector("[data-trend-clear]")?.addEventListener("click", () => {
+      clearTrendLines();
     });
     mountDetailChart(d.stock_code || code);
   } catch (err) {
@@ -1526,6 +1680,17 @@ function wireEvents() {
     }
   });
   window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && _trendMode) {
+      if (_trendDraft) {
+        _trendDraft = null;
+        updateTrendHint();
+        redrawChartOverlays();
+      } else {
+        setTrendMode(false);
+      }
+      e.preventDefault();
+      return;
+    }
     if (e.key === "Escape" && isMobileLayout()) {
       const modal = $("detail-modal");
       if (modal.open) return;
