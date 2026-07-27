@@ -823,13 +823,21 @@ function badgeLabel(badge) {
 
 let _detailChartApi = null;
 let _detailCandleSeries = null;
+let _detailIchi = null;
 let _detailBars = null;
 let _detailTf = "M";
 let _detailChartRo = null;
+let _detailCloudUnsub = null;
 let _lwChartsPromise = null;
 
 function clearDetailChart() {
   const host = document.getElementById("detail-chart");
+  if (_detailCloudUnsub) {
+    try {
+      _detailCloudUnsub();
+    } catch (_) {}
+    _detailCloudUnsub = null;
+  }
   if (_detailChartApi) {
     try {
       _detailChartApi.remove();
@@ -837,6 +845,7 @@ function clearDetailChart() {
     _detailChartApi = null;
   }
   _detailCandleSeries = null;
+  _detailIchi = null;
   _detailBars = null;
   _detailTf = "M";
   if (_detailChartRo) {
@@ -901,15 +910,158 @@ function aggregateBars(bars, tf) {
   return [...map.values()];
 }
 
+function addChartPeriods(timeStr, tf, count) {
+  const [y0, m0, d0] = timeStr.split("-").map(Number);
+  if (tf === "M") {
+    let y = y0;
+    let m = m0 + count;
+    while (m > 12) {
+      m -= 12;
+      y += 1;
+    }
+    while (m < 1) {
+      m += 12;
+      y -= 1;
+    }
+    return `${y}-${String(m).padStart(2, "0")}-01`;
+  }
+  const dt = new Date(Date.UTC(y0, m0 - 1, d0));
+  dt.setUTCDate(dt.getUTCDate() + (tf === "W" ? 7 : 1) * count);
+  return dt.toISOString().slice(0, 10);
+}
+
+function midHighLow(candles, i, period) {
+  if (i + 1 < period) return null;
+  let hi = -Infinity;
+  let lo = Infinity;
+  for (let j = i - period + 1; j <= i; j++) {
+    hi = Math.max(hi, candles[j].high);
+    lo = Math.min(lo, candles[j].low);
+  }
+  return (hi + lo) / 2;
+}
+
+function computeIchimoku(candles, tf) {
+  const tenkanP = 9;
+  const kijunP = 26;
+  const senkouP = 52;
+  const disp = 26;
+  const n = candles.length;
+  const empty = { tenkan: [], kijun: [], spanA: [], spanB: [], chikou: [], cloud: [] };
+  if (n < tenkanP) return empty;
+
+  const tenkanV = new Array(n).fill(null);
+  const kijunV = new Array(n).fill(null);
+  const senkouBV = new Array(n).fill(null);
+  for (let i = 0; i < n; i++) {
+    tenkanV[i] = midHighLow(candles, i, tenkanP);
+    kijunV[i] = midHighLow(candles, i, kijunP);
+    senkouBV[i] = midHighLow(candles, i, senkouP);
+  }
+
+  const tenkan = [];
+  const kijun = [];
+  for (let i = 0; i < n; i++) {
+    if (tenkanV[i] != null) tenkan.push({ time: candles[i].time, value: tenkanV[i] });
+    if (kijunV[i] != null) kijun.push({ time: candles[i].time, value: kijunV[i] });
+  }
+
+  const spanA = [];
+  const spanB = [];
+  const cloud = [];
+  const lastTime = candles[n - 1].time;
+  for (let j = 0; j < n + disp; j++) {
+    const src = j - disp;
+    if (src < 0) continue;
+    const t = tenkanV[src];
+    const k = kijunV[src];
+    const b = senkouBV[src];
+    const time = j < n ? candles[j].time : addChartPeriods(lastTime, tf, j - (n - 1));
+    let aVal = null;
+    if (t != null && k != null) {
+      aVal = (t + k) / 2;
+      spanA.push({ time, value: aVal });
+    }
+    if (b != null) spanB.push({ time, value: b });
+    if (aVal != null && b != null) cloud.push({ time, a: aVal, b });
+  }
+
+  const chikou = [];
+  for (let i = 0; i < n; i++) {
+    const ti = i - disp;
+    if (ti >= 0) chikou.push({ time: candles[ti].time, value: candles[i].close });
+  }
+
+  return { tenkan, kijun, spanA, spanB, chikou, cloud };
+}
+
+function ensureIchimokuCloudSvg(host) {
+  let svg = host.querySelector(".ichi-cloud-svg");
+  if (!svg) {
+    svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "ichi-cloud-svg");
+    host.appendChild(svg);
+  }
+  return svg;
+}
+
+function renderIchimokuCloud(host, cloud) {
+  const svg = ensureIchimokuCloudSvg(host);
+  svg.innerHTML = "";
+  if (!_detailChartApi || !_detailCandleSeries || !cloud?.length) return;
+  const ts = _detailChartApi.timeScale();
+  const pts = [];
+  for (const p of cloud) {
+    const x = ts.timeToCoordinate(p.time);
+    const yA = _detailCandleSeries.priceToCoordinate(p.a);
+    const yB = _detailCandleSeries.priceToCoordinate(p.b);
+    if (x == null || yA == null || yB == null) continue;
+    pts.push({ x, yA, yB, bull: p.a >= p.b });
+  }
+  if (pts.length < 2) return;
+
+  const segs = [];
+  let cur = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    if (pts[i].bull === cur[0].bull) cur.push(pts[i]);
+    else {
+      segs.push(cur);
+      cur = [pts[i]];
+    }
+  }
+  segs.push(cur);
+
+  for (const seg of segs) {
+    if (seg.length < 2) continue;
+    const top = seg.map((p) => `${p.x},${Math.min(p.yA, p.yB)}`);
+    const bot = seg.map((p) => `${p.x},${Math.max(p.yA, p.yB)}`).reverse();
+    const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+    poly.setAttribute("points", [...top, ...bot].join(" "));
+    poly.setAttribute("fill", seg[0].bull ? "rgba(61, 214, 140, 0.18)" : "rgba(240, 113, 120, 0.18)");
+    svg.appendChild(poly);
+  }
+}
+
 function applyDetailChartTf(tf) {
   _detailTf = tf;
   document.querySelectorAll("[data-chart-tf]").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.chartTf === tf);
   });
-  if (!_detailCandleSeries || !_detailBars) return;
+  if (!_detailCandleSeries || !_detailBars || !_detailIchi) return;
   const data = aggregateBars(_detailBars, tf);
   _detailCandleSeries.setData(data);
+  const ichi = computeIchimoku(data, tf);
+  _detailIchi.tenkan.setData(ichi.tenkan);
+  _detailIchi.kijun.setData(ichi.kijun);
+  _detailIchi.spanA.setData(ichi.spanA);
+  _detailIchi.spanB.setData(ichi.spanB);
+  _detailIchi.chikou.setData(ichi.chikou);
+  _detailIchi.cloud = ichi.cloud;
   if (_detailChartApi && data.length) _detailChartApi.timeScale().fitContent();
+  const host = document.getElementById("detail-chart");
+  if (host) {
+    requestAnimationFrame(() => renderIchimokuCloud(host, ichi.cloud));
+  }
 }
 
 async function mountDetailChart(code) {
@@ -943,6 +1095,11 @@ async function mountDetailChart(code) {
       timeScale: { borderColor: "#3a414d" },
       crosshair: { mode: LW.CrosshairMode.Normal },
     });
+    const lineOpts = {
+      lastValueVisible: false,
+      priceLineVisible: false,
+      crosshairMarkerVisible: false,
+    };
     const series = chart.addCandlestickSeries({
       upColor: "#f07178",
       downColor: "#7eb6ff",
@@ -951,12 +1108,50 @@ async function mountDetailChart(code) {
       wickUpColor: "#f07178",
       wickDownColor: "#7eb6ff",
     });
+    _detailIchi = {
+      tenkan: chart.addLineSeries({
+        color: "#f2a93b",
+        lineWidth: 2,
+        ...lineOpts,
+      }),
+      kijun: chart.addLineSeries({
+        color: "#e85d75",
+        lineWidth: 2,
+        ...lineOpts,
+      }),
+      spanA: chart.addLineSeries({
+        color: "rgba(61, 214, 140, 0.9)",
+        lineWidth: 1,
+        lineStyle: LW.LineStyle?.SparseDotted ?? 1,
+        ...lineOpts,
+      }),
+      spanB: chart.addLineSeries({
+        color: "rgba(240, 113, 120, 0.9)",
+        lineWidth: 1,
+        lineStyle: LW.LineStyle?.SparseDotted ?? 1,
+        ...lineOpts,
+      }),
+      chikou: chart.addLineSeries({
+        color: "#7eb6ff",
+        lineWidth: 1,
+        ...lineOpts,
+      }),
+      cloud: [],
+    };
     _detailChartApi = chart;
     _detailCandleSeries = series;
+    const redrawCloud = () => renderIchimokuCloud(host, _detailIchi?.cloud || []);
+    chart.timeScale().subscribeVisibleLogicalRangeChange(redrawCloud);
+    _detailCloudUnsub = () => {
+      try {
+        chart.timeScale().unsubscribeVisibleLogicalRangeChange(redrawCloud);
+      } catch (_) {}
+    };
     applyDetailChartTf(_detailTf || "M");
     _detailChartRo = new ResizeObserver(() => {
       try {
         chart.applyOptions({ width: host.clientWidth, height: host.clientHeight });
+        redrawCloud();
       } catch (_) {}
     });
     _detailChartRo.observe(host);
@@ -1027,6 +1222,12 @@ async function openDetail(code) {
         <div class="d-cat-head">
           <div class="d-cat-title">차트</div>
           <div class="d-cat-line"></div>
+          <div class="d-ichi-legend" title="일목균형표 (9·26·52)">
+            <span class="ichi-tenkan">전환</span>
+            <span class="ichi-kijun">기준</span>
+            <span class="ichi-cloud">구름</span>
+            <span class="ichi-chikou">후행</span>
+          </div>
           <div class="d-chart-tf" role="group" aria-label="차트 주기">
             <button type="button" data-chart-tf="D">일</button>
             <button type="button" data-chart-tf="W">주</button>

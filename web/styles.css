@@ -646,6 +646,32 @@ input:focus {
   flex: 0 0 auto;
   margin-left: 0.35rem;
 }
+.d-ichi-legend {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.55rem;
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #9aa3b5;
+}
+.d-ichi-legend span::before {
+  content: "";
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.18rem;
+  border-radius: 2px;
+  margin-right: 0.22rem;
+  vertical-align: middle;
+}
+.d-ichi-legend .ichi-tenkan::before { background: #f2a93b; }
+.d-ichi-legend .ichi-kijun::before { background: #e85d75; }
+.d-ichi-legend .ichi-cloud::before {
+  height: 0.55rem;
+  width: 0.55rem;
+  background: linear-gradient(135deg, rgba(61, 214, 140, 0.55), rgba(240, 113, 120, 0.45));
+}
+.d-ichi-legend .ichi-chikou::before { background: #7eb6ff; }
 .d-chart-tf button {
   appearance: none;
   border: 1px solid #4a5568;
@@ -673,6 +699,14 @@ input:focus {
   border: 1px solid #3a414d;
   background: #1c2027;
   position: relative;
+}
+.d-chart .ichi-cloud-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
 }
 .d-chart-msg {
   margin: 0;
