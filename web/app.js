@@ -5,6 +5,7 @@ let autosaveTimer = null;
 let suppressAutosave = false;
 let sidebarHistoryPushed = false;
 let favSyncTimer = null;
+let quoteReqId = 0;
 const GRADE_CLASS = { A: "hot", B: "watch", C: "neutral", D: "warn" };
 
 const state = {
@@ -166,7 +167,7 @@ async function toggleFav(code, opts = {}) {
   if (state.mode === "favorites") {
     runScreen();
   } else {
-    renderList(state.rows);
+    renderList(state.rows, { refreshQuotes: false });
   }
   const modal = $("detail-modal");
   const star = modal?.querySelector?.("[data-detail-fav]");
@@ -787,7 +788,7 @@ function setSort(key) {
   }
   if (state.meta) renderListHead(state.meta);
   const sorted = applySort(state.rows);
-  renderList(sorted);
+  renderList(sorted, { refreshQuotes: false });
   const cached = state.resultsByMode[state.mode];
   if (cached) {
     state.resultsByMode[state.mode] = { ...cached, rows: sorted };
@@ -814,6 +815,99 @@ function favReturnClass(row) {
   const n = row.fav_return_pct_num;
   if (n == null || n === "") return "fav-ret";
   return Number(n) >= 0 ? "fav-ret up" : "fav-ret down";
+}
+
+function enrichFavReturn(row) {
+  const add = row.fav_price_at_add_num;
+  const cur = row.current_price_num;
+  if (add == null || cur == null || !Number.isFinite(Number(add)) || Number(add) <= 0) return;
+  const ret = ((Number(cur) - Number(add)) / Number(add)) * 100;
+  row.fav_return_pct_num = Math.round(ret * 100) / 100;
+  const sign = ret > 0 ? "+" : "";
+  row.fav_return_pct_display = `${sign}${ret.toFixed(1)}%`;
+}
+
+function applyQuotes(quoteList) {
+  if (!quoteList?.length) return false;
+  const byCode = new Map(quoteList.map((q) => [padCode(q.stock_code), q]));
+  let changed = false;
+  for (const row of state.rows) {
+    const q = byCode.get(padCode(row.stock_code));
+    if (!q || q.current_price_num == null) continue;
+    row.current_price = q.current_price;
+    row.current_price_num = q.current_price_num;
+    if (state.mode === "favorites") enrichFavReturn(row);
+    changed = true;
+  }
+  if (!changed) return false;
+  const cached = state.resultsByMode[state.mode];
+  if (cached) state.resultsByMode[state.mode] = { ...cached, rows: state.rows.slice() };
+  return true;
+}
+
+function patchQuoteDom() {
+  for (const row of state.rows) {
+    const code = padCode(row.stock_code);
+    document.querySelectorAll(`[data-col="current_price"][data-code="${code}"]`).forEach((el) => {
+      el.textContent = row.current_price ?? "-";
+      el.classList.add("quote-fresh");
+    });
+    if (state.mode === "favorites") {
+      document.querySelectorAll(`[data-col="fav_return_pct_display"][data-code="${code}"]`).forEach((el) => {
+        el.textContent = row.fav_return_pct_display ?? "-";
+        el.className = `c-center ${favReturnClass(row)} quote-cell quote-fresh`;
+      });
+      const card = document.querySelector(`.mcard[data-code="${code}"]`);
+      const favMeta = card?.querySelector(".mcard-fav");
+      if (favMeta) {
+        favMeta.innerHTML = `${escapeHtml(row.fav_added_at || "-")} · 등록 ${escapeHtml(
+          row.fav_price_at_add || "-"
+        )} · <span class="${favReturnClass(row)}">${escapeHtml(row.fav_return_pct_display || "-")}</span>`;
+      }
+    }
+  }
+}
+
+async function refreshVisibleQuotes(rows) {
+  const list = rows || state.rows;
+  const codes = list.map((r) => padCode(r.stock_code)).filter(Boolean);
+  if (!codes.length) return;
+  const reqId = ++quoteReqId;
+  try {
+    const data = await api("/api/quotes", {
+      method: "POST",
+      body: JSON.stringify({ codes }),
+    });
+    if (reqId !== quoteReqId) return;
+    if (applyQuotes(data.quotes || [])) {
+      patchQuoteDom();
+      const base = $("status").textContent.replace(/ · 시세 갱신.*/, "");
+      if (data.updated > 0) setStatus(`${base} · 시세 갱신 ${data.updated}종목`);
+    }
+  } catch (_) {}
+}
+
+async function refreshDetailQuote(code) {
+  const c = padCode(code);
+  try {
+    const data = await api("/api/quotes", {
+      method: "POST",
+      body: JSON.stringify({ codes: [c] }),
+    });
+    const q = (data.quotes || []).find((x) => padCode(x.stock_code) === c);
+    if (!q) return;
+    const modal = $("detail-modal");
+    if (modal?.open) modal.dataset.detailPrice = String(q.current_price_num);
+    document.querySelectorAll("#detail-content .d-tile").forEach((tile) => {
+      const lab = tile.querySelector(".lab");
+      if (!lab || !String(lab.textContent || "").startsWith("현재가")) return;
+      const val = tile.querySelector(".val");
+      if (val) {
+        val.textContent = q.current_price;
+        val.classList.add("quote-fresh");
+      }
+    });
+  } catch (_) {}
 }
 
 function colVal(row, key) {
@@ -862,15 +956,21 @@ function renderCell(r, c) {
       r.tradingview
     )}" target="_blank" rel="noopener" data-chart>차트</a></span>`;
   }
+  if (c === "current_price") {
+    return `<span class="c-center quote-cell" data-col="current_price" data-code="${escapeHtml(
+      r.stock_code
+    )}">${escapeHtml(String(colVal(r, c)))}</span>`;
+  }
   if (c === "fav_return_pct_display") {
-    return `<span class="c-center ${favReturnClass(r)}">${escapeHtml(
-      String(r.fav_return_pct_display ?? "-")
-    )}</span>`;
+    return `<span class="c-center ${favReturnClass(r)} quote-cell" data-col="fav_return_pct_display" data-code="${escapeHtml(
+      r.stock_code
+    )}">${escapeHtml(String(r.fav_return_pct_display ?? "-"))}</span>`;
   }
   return `<span class="c-center">${escapeHtml(String(colVal(r, c)))}</span>`;
 }
 
-function renderList(rows) {
+function renderList(rows, opts = {}) {
+  const refreshQuotes = opts.refreshQuotes !== false;
   state.rows = applySort(rows || []);
   const meta = state.meta;
   const { columns: cols } = listMetaForMode(meta);
@@ -923,6 +1023,7 @@ function renderList(rows) {
       </div>`;
     })
     .join("");
+  if (refreshQuotes && state.rows.length) refreshVisibleQuotes(state.rows);
 }
 
 function badgeClass(badge) {
@@ -1565,6 +1666,7 @@ async function openDetail(code) {
       clearTrendLines();
     });
     mountDetailChart(d.stock_code || code);
+    refreshDetailQuote(d.stock_code || code);
   } catch (err) {
     box.innerHTML = `<p class="empty">${escapeHtml(err.message)}</p>`;
   }

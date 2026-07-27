@@ -906,6 +906,14 @@ input:focus {
 .fav-ret.up { color: var(--good); font-weight: 600; }
 .fav-ret.down { color: var(--bad); font-weight: 600; }
 
+@keyframes quote-flash {
+  from { color: #7eb6ff; }
+  to { color: inherit; }
+}
+.quote-fresh {
+  animation: quote-flash 0.9s ease-out;
+}
+
 .empty {
   color: var(--muted);
   padding: 2rem 0.5rem;

@@ -41,7 +41,7 @@ from favorites_store import (  # noqa: E402
     persist_favorites,
 )
 from interpret import interpret_metric  # noqa: E402
-from price import load_price_metrics, price_cache_caption, fetch_chart_bars  # noqa: E402
+from price import load_price_metrics, price_cache_caption, fetch_chart_bars, fetch_current_quotes  # noqa: E402
 from screener import (  # noqa: E402
     apply_range_filters,
     attach_scores,
@@ -691,6 +691,35 @@ def api_detail(code: str) -> dict[str, Any]:
                     row[c] = ph.iloc[0][c]
     scored = attach_scores(pd.DataFrame([row]))
     return _build_detail(scored.iloc[0])
+
+
+class QuotesBody(BaseModel):
+    codes: list[str] = Field(default_factory=list)
+
+
+@app.post("/api/quotes")
+def api_quotes(body: QuotesBody) -> dict[str, Any]:
+    """리스트/상세에 보이는 종목만 최신 시세 조회 (네이버 기준)."""
+    codes = [str(c).zfill(6) for c in (body.codes or []) if str(c).strip()][:250]
+    if not codes:
+        return {"quotes": [], "updated": 0}
+    market_map: dict[str, str] = {}
+    fin = get_financials()
+    if not fin.empty and "market" in fin.columns:
+        sub = fin[fin["stock_code"].astype(str).str.zfill(6).isin(codes)]
+        for _, r in sub.iterrows():
+            code = str(r["stock_code"]).zfill(6)
+            market_map[code] = str(r.get("market") or "")
+    raw = fetch_current_quotes(codes, markets=market_map, max_workers=12, per_stock_timeout=6.0)
+    quotes = [
+        {
+            "stock_code": code,
+            "current_price": format_metric_value("current_price", num),
+            "current_price_num": num,
+        }
+        for code, num in sorted(raw.items())
+    ]
+    return {"quotes": quotes, "updated": len(quotes)}
 
 
 @app.get("/api/chart/{code}")

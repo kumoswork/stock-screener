@@ -383,6 +383,102 @@ def price_cache_caption() -> str:
     return f"주가 캐시: {rows}종목"
 
 
+def _parse_price_text(value) -> float | None:
+    if value is None:
+        return None
+    try:
+        n = float(str(value).replace(",", "").replace("원", "").strip())
+    except (TypeError, ValueError):
+        return None
+    return n if n > 0 else None
+
+
+def _fetch_quote_naver(code: str) -> float | None:
+    url = f"https://m.stock.naver.com/api/stock/{code}/basic"
+    resp = requests.get(url, headers=_NAVER_HEADERS, timeout=(2, 5))
+    resp.raise_for_status()
+    data = resp.json()
+    if not isinstance(data, dict):
+        return None
+    return _parse_price_text(data.get("closePrice"))
+
+
+def _fetch_quote_short_ohlcv(code: str, market: str | None = None) -> float | None:
+    end = datetime.today()
+    start = end - timedelta(days=14)
+    end_s = end.strftime("%Y-%m-%d")
+    start_s = start.strftime("%Y-%m-%d")
+    ohlcv = None
+    try:
+        ohlcv = _naver_ohlcv(code, start_s, end_s)
+    except Exception:
+        ohlcv = None
+    if ohlcv is None or ohlcv.empty:
+        try:
+            ohlcv = _yahoo_ohlcv(code, start_s, end_s, market)
+        except Exception:
+            ohlcv = None
+    if ohlcv is None or ohlcv.empty:
+        return None
+    close_col = "Close" if "Close" in ohlcv.columns else "종가"
+    try:
+        return float(ohlcv[close_col].iloc[-1])
+    except (TypeError, ValueError, IndexError):
+        return None
+
+
+def _fetch_quote_one(
+    code: str,
+    market: str | None = None,
+    per_stock_timeout: float = 6.0,
+) -> float | None:
+    def _go() -> float | None:
+        try:
+            price = _fetch_quote_naver(code)
+            if price is not None:
+                return price
+        except Exception:
+            pass
+        return _fetch_quote_short_ohlcv(code, market)
+
+    return _run_with_timeout(_go, per_stock_timeout)
+
+
+def fetch_current_quotes(
+    stock_codes: list[str],
+    markets: dict[str, str] | None = None,
+    max_workers: int = 12,
+    per_stock_timeout: float = 6.0,
+) -> dict[str, float]:
+    """화면에 보이는 종목만 최신 시세(네이버 기준) 조회."""
+    codes = list(dict.fromkeys(str(c).zfill(6) for c in stock_codes if str(c).strip()))
+    if not codes:
+        return {}
+
+    market_map = markets or {}
+    out: dict[str, float] = {}
+    workers = max(1, min(max_workers, len(codes)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {
+            pool.submit(
+                _fetch_quote_one,
+                code,
+                market_map.get(code),
+                per_stock_timeout,
+            ): code
+            for code in codes
+        }
+        for fut in as_completed(futures):
+            code = futures[fut]
+            try:
+                price = fut.result(timeout=1)
+            except Exception:
+                price = None
+            if price is not None and price > 0:
+                out[code] = float(price)
+    return out
+
+
 def _normalize_ohlcv_cols(df: pd.DataFrame) -> pd.DataFrame | None:
     if df is None or df.empty:
         return None
