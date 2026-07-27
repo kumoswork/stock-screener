@@ -132,13 +132,8 @@ def _metrics_from_ohlcv(
     range_position = (
         (current - low_52w) / (high_52w - low_52w) * 100 if high_52w > low_52w else 0.0
     )
-    band_top = low_52w + (high_52w - low_52w) * (bottom_band_pct / 100)
-    dwell_window = recent.tail(dwell_days)
-    if len(dwell_window) > 0:
-        near_bottom_days = int((dwell_window[close_col] <= band_top).sum())
-        bottom_dwell_ratio = near_bottom_days / len(dwell_window) * 100
-    else:
-        bottom_dwell_ratio = None
+    # 52주 변동폭: 저가 대비 고가 상승률(낮을수록 박스·압축)
+    bottom_dwell_ratio = (high_52w - low_52w) / low_52w * 100 if low_52w > 0 else None
 
     return {
         "stock_code": code,
@@ -343,6 +338,13 @@ def load_price_metrics() -> pd.DataFrame:
     if "stock_code" not in df.columns or df.empty:
         return pd.DataFrame()
     df["stock_code"] = df["stock_code"].astype(str).str.zfill(6)
+    # 캐시가 옛 '바닥체류(일수비율)'이어도 저·고가로 52주 변동폭을 즉시 재계산
+    if {"low_52w", "high_52w"}.issubset(df.columns):
+        low = pd.to_numeric(df["low_52w"], errors="coerce")
+        high = pd.to_numeric(df["high_52w"], errors="coerce")
+        swing = (high - low) / low * 100
+        swing = swing.where((low > 0) & low.notna() & high.notna())
+        df["bottom_dwell_ratio"] = swing.round(2)
     return df
 
 

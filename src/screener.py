@@ -26,7 +26,7 @@ SORT_LABELS = {
     "current_price": "현재가",
     "pct_from_avg_52w": "평균대비(%)",
     "range_position": "52주위치(%)",
-    "bottom_dwell_ratio": "바닥체류(%)",
+    "bottom_dwell_ratio": "변동폭(%)",
     "current_ratio": "유동비율(%)",
     "quick_ratio": "당좌비율(%)",
     "debt_ratio": "부채비율(%)",
@@ -333,6 +333,8 @@ def _excellent_hint(spec) -> str:
         return f"{good:g}%↑양호 · {excellent:g}%↑우수 · {very:g}%↑매우우수"
     if spec.key == "pct_from_avg_52w":
         return "-50%↓ 매우우수 · -20%↓ 우수 · 구간 필터"
+    if spec.key == "bottom_dwell_ratio":
+        return "25%↓ 매우우수 · 50%↓ 우수 (낮을수록 박스 압축)"
     if spec.key == "debt_ratio":
         return "50~200% 우수 · 50%↓ 중립 · 200%↑ 위험"
     if spec.key == "sga_ratio_change":

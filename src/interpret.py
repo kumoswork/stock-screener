@@ -170,12 +170,17 @@ def interpret_metric(
             parts.append("최근 1년 평균 주가와 비슷한 수준이에요.")
     elif key == "bottom_dwell_ratio" and v is not None:
         parts.append(
-            f"최근 기간 중 약 {v:.1f}%를 바닥권에서 보냈다는 뜻이에요."
+            f"52주 저가 대비 고가가 약 {v:.1f}% 벌어져 있다는 뜻이에요. "
+            f"(저가×{1 + v / 100:.2f}배가 고가)"
         )
-        if v >= 50:
-            parts.append("오래 눌려 있었던 편이에요.")
+        if v <= 30:
+            parts.append("변동폭이 좁아 힘이 압축된 박스에 가까워요.")
+        elif v <= 50:
+            parts.append("비교적 압축된 편이에요.")
+        elif v <= 100:
+            parts.append("저가 대비 두 배 안쪽에서 움직인 편이에요.")
         else:
-            parts.append("바닥권에 머문 비중은 크지 않아요.")
+            parts.append("52주 낙폭·상승폭이 큰 편이에요.")
     elif key == "range_position" and v is not None:
         parts.append(
             f"1년 최저~최고가 사이에서 아래에서부터 약 {v:.1f}% 지점이라는 뜻이에요."

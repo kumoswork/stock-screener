@@ -233,13 +233,13 @@ FILTER_SPECS: list[FilterSpec] = [
     ),
     FilterSpec(
         "bottom_dwell_ratio",
-        "바닥체류",
+        "52주 변동폭",
         "주가 현위치",
-        "최근 기간 동안 주가가 바닥권에 머문 비율이에요. 높을수록 오래 눌려 있었어요. 우수: 50% 이상",
-        "min",
-        50.0,
+        "52주 저가 대비 고가가 얼마나 벌어졌는지예요. 낮을수록 박스처럼 힘이 압축된 구간이에요. 50%≈저가 대비 1.5배 · 100%≈두 배. 우수: 50% 이하",
+        "max",
         None,
-        True,
+        50.0,
+        False,
         "%",
     ),
 ]
@@ -413,9 +413,6 @@ def badge_for_value(
         if exc is None:
             return "보통"
         very = exc * 2
-        # bottom_dwell capped: very = 75
-        if spec.key == "bottom_dwell_ratio":
-            very = 75.0
         if value >= very:
             return "매우우수"
         if value >= exc:
