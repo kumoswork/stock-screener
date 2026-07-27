@@ -34,6 +34,7 @@ from criteria import (  # noqa: E402
 )
 from filter_store import load_saved_filters, persist_filters  # noqa: E402
 from favorites_store import load_favorites, persist_favorites  # noqa: E402
+from interpret import interpret_metric  # noqa: E402
 from price import load_price_metrics, price_cache_caption  # noqa: E402
 from screener import (  # noqa: E402
     apply_range_filters,
@@ -111,12 +112,25 @@ for _spec in FILTER_SPECS:
             DETAIL_HELP[_spec.label] = f"{base} · {hint}"
 
 
-def _tile(label: str, value: str, badge: str = "해당없음") -> dict[str, str]:
+def _tile(
+    label: str,
+    value: str,
+    badge: str = "해당없음",
+    *,
+    key: str | None = None,
+    raw: Any = None,
+) -> dict[str, str]:
+    base = (DETAIL_HELP.get(label, "") or "").strip()
+    reading = interpret_metric(key, raw, value, badge) if key else ""
+    if reading and base:
+        help_text = f"{reading} · {base}"
+    else:
+        help_text = reading or base
     return {
         "label": label,
         "value": value,
         "badge": badge,
-        "help": DETAIL_HELP.get(label, ""),
+        "help": help_text,
     }
 
 app = FastAPI(title="KUMO Stock Screener", version="1.0.0")
@@ -456,7 +470,14 @@ def _build_detail(row: pd.Series) -> dict[str, Any]:
                 ("net_income", "당기순이익"),
             ]:
                 if key in row.index and _has(row.get(key)):
-                    tiles.append(_tile(label, format_cell(row, key)))
+                    tiles.append(
+                        _tile(
+                            label,
+                            format_cell(row, key),
+                            key=key,
+                            raw=row.get(key),
+                        )
+                    )
         else:
             if cat_key == "주가 현위치":
                 if _has(row.get("market_cap")):
@@ -464,6 +485,8 @@ def _build_detail(row: pd.Series) -> dict[str, Any]:
                         _tile(
                             "시가총액",
                             format_metric_value("market_cap", row.get("market_cap")),
+                            key="market_cap",
+                            raw=row.get("market_cap"),
                         )
                     )
                 if _has(row.get("current_price")):
@@ -471,6 +494,8 @@ def _build_detail(row: pd.Series) -> dict[str, Any]:
                         _tile(
                             "현재가",
                             format_metric_value("current_price", row.get("current_price")),
+                            key="current_price",
+                            raw=row.get("current_price"),
                         )
                     )
                 if _has(row.get("range_position")):
@@ -478,6 +503,8 @@ def _build_detail(row: pd.Series) -> dict[str, Any]:
                         _tile(
                             "52주위치(%)",
                             format_metric_value("range_position", row.get("range_position")),
+                            key="range_position",
+                            raw=row.get("range_position"),
                         )
                     )
                 if _has(row.get("avg_52w")):
@@ -485,17 +512,28 @@ def _build_detail(row: pd.Series) -> dict[str, Any]:
                         _tile(
                             "52주 평균가",
                             format_metric_value("current_price", row.get("avg_52w")),
+                            key="avg_52w",
+                            raw=row.get("avg_52w"),
                         )
                     )
                 if _has(row.get("low_52w")):
                     lo = format_metric_value("current_price", row.get("low_52w"))
                     hi = format_metric_value("current_price", row.get("high_52w"))
-                    tiles.append(_tile("52주 저가/고가", f"{lo} / {hi}"))
+                    tiles.append(
+                        _tile(
+                            "52주 저가/고가",
+                            f"{lo} / {hi}",
+                            key="low_high_52w",
+                            raw=None,
+                        )
+                    )
             if cat_key == "B경제" and _has(row.get("sga_ratio")):
                 tiles.append(
                     _tile(
                         "판관비율(판관비÷매출)",
                         format_metric_value("sga_ratio", row.get("sga_ratio")),
+                        key="sga_ratio",
+                        raw=row.get("sga_ratio"),
                     )
                 )
             for spec in specs_in_category(cat_key):
@@ -504,6 +542,8 @@ def _build_detail(row: pd.Series) -> dict[str, Any]:
                         spec.label,
                         format_metric_value(spec.key, row.get(spec.key)),
                         str(badges.get(spec.key, "해당없음")),
+                        key=spec.key,
+                        raw=row.get(spec.key),
                     )
                 )
         sections.append(

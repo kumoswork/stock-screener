@@ -216,7 +216,7 @@ const ABS_HELP = {
 function infoBtnHtml(text) {
   const t = (text || "").trim();
   if (!t) return "";
-  return `<button type="button" class="info-btn" aria-label="설명" aria-expanded="false" data-info="${escapeHtml(t)}">?</button>`;
+  return `<button type="button" class="info-btn" aria-label="설명" aria-expanded="false" data-info="${escapeHtml(t)}"></button>`;
 }
 
 let _infoPop = null;
