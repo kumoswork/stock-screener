@@ -23,24 +23,33 @@ def _normalize(codes: list[Any] | None) -> list[str]:
     return out
 
 
+def _load_local() -> list[str]:
+    if not SAVED_PATH.exists():
+        return []
+    try:
+        data = json.loads(SAVED_PATH.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            return _normalize(data.get("codes"))
+        if isinstance(data, list):
+            return _normalize(data)
+    except (json.JSONDecodeError, OSError):
+        pass
+    return []
+
+
 def load_favorites() -> list[str]:
+    """서버 로컬 파일 우선. GitHub는 로컬이 비었을 때만(백업)."""
+    local = _load_local()
+    if local:
+        return local
+
     remote = _load_from_github_raw()
-    if remote is not None:
+    if remote:
         try:
             save_favorites_local(remote)
         except OSError:
             pass
         return remote
-
-    if SAVED_PATH.exists():
-        try:
-            data = json.loads(SAVED_PATH.read_text(encoding="utf-8"))
-            if isinstance(data, dict):
-                return _normalize(data.get("codes"))
-            if isinstance(data, list):
-                return _normalize(data)
-        except (json.JSONDecodeError, OSError):
-            pass
     return []
 
 

@@ -106,14 +106,20 @@ async function toggleFav(code) {
 }
 
 async function loadFavoritesFromServer() {
+  const local = loadFavorites();
   try {
     const res = await api("/api/favorites");
     if (Array.isArray(res.codes)) {
-      saveFavoritesLocal(res.codes);
-      return res.codes.map((c) => padCode(c));
+      const server = res.codes.map((c) => padCode(c));
+      const merged = [...new Set([...local, ...server])];
+      saveFavoritesLocal(merged);
+      if (merged.length > server.length) {
+        scheduleFavoritesSync(merged);
+      }
+      return merged;
     }
   } catch (_) {}
-  return loadFavorites();
+  return local;
 }
 
 function setStatus(msg) {
@@ -1769,11 +1775,7 @@ async function init() {
   restoreSidebar();
   setStatus("메타 로딩…");
   try {
-    const localFavs = loadFavorites();
-    const serverFavs = await loadFavoritesFromServer();
-    if ((!serverFavs || !serverFavs.length) && localFavs.length) {
-      await syncFavoritesToServer(localFavs);
-    }
+    await loadFavoritesFromServer();
     const meta = await api("/api/meta");
     state.meta = meta;
     buildFiltersUI(meta);
