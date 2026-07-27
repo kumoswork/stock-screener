@@ -33,6 +33,7 @@ from criteria import (  # noqa: E402
     specs_in_category,
 )
 from filter_store import load_saved_filters, persist_filters  # noqa: E402
+from favorites_store import load_favorites, persist_favorites  # noqa: E402
 from price import load_price_metrics, price_cache_caption  # noqa: E402
 from screener import (  # noqa: E402
     apply_range_filters,
@@ -57,15 +58,15 @@ DETAIL_SECTION_ORDER: list[tuple[str, str | None]] = [
 ]
 
 DETAIL_HELP: dict[str, str] = {
-    "매출액": "당기 매출액",
-    "영업이익": "당기 영업이익",
-    "당기순이익": "당기 당기순이익",
-    "현재가": "최근 종가 (주가 캐시)",
-    "시가총액": "상장주식수 × 현재가 (KRX, 주가 캐시)",
-    "52주위치(%)": "52주 저가~고가 구간에서 현재가 위치 (0%=저가, 100%=고가)",
-    "52주 평균가": "최근 52주 종가 평균",
-    "52주 저가/고가": "최근 52주 최저가 / 최고가",
-    "판관비율(판관비÷매출)": "판관비 ÷ 매출액 (절대 비율)",
+    "매출액": "회사가 한 해 동안 판 금액(규모)이에요. 필터에서는 ‘이상’만 씁니다.",
+    "영업이익": "본업으로 남긴 이익이에요. 이상·이하로 규모를 좁힐 수 있어요.",
+    "당기순이익": "이자·세금까지 반영한 최종 이익이에요. 이상·이하로 규모를 좁힐 수 있어요.",
+    "현재가": "최근 종가예요. 주가 캐시 기준입니다.",
+    "시가총액": "회사 전체 가치를 주가로 환산한 크기예요. (상장주식수×현재가) 필터 단위는 억원입니다.",
+    "52주위치(%)": "1년 최저~최고가 사이에서 지금 주가가 어디쯤인지예요. 0%에 가까울수록 저가권이에요.",
+    "52주 평균가": "최근 약 1년 종가의 평균이에요.",
+    "52주 저가/고가": "최근 약 1년 동안의 최저가와 최고가예요.",
+    "판관비율(판관비÷매출)": "매출 중 판관비(영업비용)가 차지하는 비율이에요. 낮을수록 비용 부담이 작아요.",
 }
 
 
@@ -591,6 +592,22 @@ def api_save_filters(body: FiltersBody) -> dict[str, Any]:
     }
     where = persist_filters(state)
     return {"status": "ok", "where": where, "saved": state}
+
+
+class FavoritesBody(BaseModel):
+    codes: list[str] = Field(default_factory=list)
+
+
+@app.get("/api/favorites")
+def api_get_favorites() -> dict[str, Any]:
+    codes = load_favorites()
+    return {"codes": codes, "count": len(codes)}
+
+
+@app.post("/api/favorites")
+def api_save_favorites(body: FavoritesBody) -> dict[str, Any]:
+    codes, where = persist_favorites(list(body.codes or []))
+    return {"status": "ok", "where": where, "codes": codes, "count": len(codes)}
 
 
 @app.get("/")

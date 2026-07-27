@@ -272,6 +272,26 @@ def render_abs_filters(filters: dict) -> None:
 
     st.markdown("**절대 금액 (이상·이하)**")
     for key, label in ABS_SPECS:
+        if key == "revenue":
+            c_chk, c_lo, c_unit = st.columns([1.15, 0.95, 0.9])
+            with c_chk:
+                st.checkbox(label, key=f"abs_{key}")
+            if st.session_state.get(f"abs_{key}"):
+                with c_lo:
+                    lo = _int_number_input("lo", f"abs_{key}_lo")
+                with c_unit:
+                    unit = st.selectbox(
+                        "단위",
+                        ["억원", "조원"],
+                        key=f"abs_{key}_unit",
+                        label_visibility="collapsed",
+                    )
+                mult = 1e8 if unit == "억원" else 1e12
+                lo_v = lo * mult if lo else None
+                if lo_v is not None:
+                    filters[key] = (lo_v, None)
+            continue
+
         if key == "market_cap":
             c_chk, c_lo, c_tilde, c_hi, c_unit = st.columns([1.15, 0.75, 0.2, 0.75, 0.55])
         else:

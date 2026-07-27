@@ -3,6 +3,8 @@ const FAV_KEY = "kumo_favorites";
 const FILTER_KEY = "kumo_filters";
 let autosaveTimer = null;
 let suppressAutosave = false;
+let sidebarHistoryPushed = false;
+let favSyncTimer = null;
 const GRADE_CLASS = { A: "hot", B: "watch", C: "neutral", D: "warn" };
 
 const state = {
@@ -47,9 +49,11 @@ function loadFavorites() {
   }
 }
 
-function saveFavorites(codes) {
+function saveFavoritesLocal(codes) {
   const uniq = [...new Set(codes.map((c) => padCode(c)))];
-  localStorage.setItem(FAV_KEY, JSON.stringify(uniq));
+  try {
+    localStorage.setItem(FAV_KEY, JSON.stringify(uniq));
+  } catch (_) {}
   return uniq;
 }
 
@@ -57,17 +61,59 @@ function isFav(code) {
   return loadFavorites().includes(padCode(code));
 }
 
-function toggleFav(code) {
+async function syncFavoritesToServer(codes) {
+  const uniq = [...new Set(codes.map((c) => padCode(c)))];
+  saveFavoritesLocal(uniq);
+  try {
+    const res = await api("/api/favorites", {
+      method: "POST",
+      body: JSON.stringify({ codes: uniq }),
+    });
+    if (Array.isArray(res.codes)) saveFavoritesLocal(res.codes);
+    return res.codes || uniq;
+  } catch (_) {
+    return uniq;
+  }
+}
+
+function scheduleFavoritesSync(codes) {
+  clearTimeout(favSyncTimer);
+  favSyncTimer = setTimeout(() => {
+    syncFavoritesToServer(codes);
+  }, 200);
+}
+
+async function toggleFav(code) {
   const c = padCode(code);
   let favs = loadFavorites();
   if (favs.includes(c)) favs = favs.filter((x) => x !== c);
   else favs.push(c);
-  saveFavorites(favs);
+  saveFavoritesLocal(favs);
+  scheduleFavoritesSync(favs);
   if (state.mode === "favorites") {
     runScreen();
   } else {
     renderList(state.rows);
   }
+  // 상세가 열려 있으면 별 상태 갱신
+  const modal = $("detail-modal");
+  const star = modal?.querySelector?.("[data-detail-fav]");
+  if (star && padCode(star.dataset.detailFav) === c) {
+    const on = favs.includes(c);
+    star.textContent = on ? "★" : "☆";
+    star.classList.toggle("on", on);
+  }
+}
+
+async function loadFavoritesFromServer() {
+  try {
+    const res = await api("/api/favorites");
+    if (Array.isArray(res.codes)) {
+      saveFavoritesLocal(res.codes);
+      return res.codes.map((c) => padCode(c));
+    }
+  } catch (_) {}
+  return loadFavorites();
 }
 
 function setStatus(msg) {
@@ -78,10 +124,16 @@ function isMobileLayout() {
   return window.matchMedia("(max-width: 980px)").matches;
 }
 
-function closeSidebar() {
+function closeSidebar(fromPopstate = false) {
   if (!isMobileLayout()) return;
   $("sidebar").classList.remove("open");
   $("sidebar-overlay").hidden = true;
+  if (!fromPopstate && sidebarHistoryPushed) {
+    sidebarHistoryPushed = false;
+    history.back();
+  } else {
+    sidebarHistoryPushed = false;
+  }
 }
 
 function openSidebar() {
@@ -93,6 +145,10 @@ function openSidebar() {
   }
   $("sidebar").classList.add("open");
   $("sidebar-overlay").hidden = false;
+  if (!sidebarHistoryPushed) {
+    history.pushState({ kumoSidebar: 1 }, "");
+    sidebarHistoryPushed = true;
+  }
 }
 
 function toggleSidebar() {
@@ -165,14 +221,24 @@ function buildFiltersUI(meta) {
           <option value="억원">억원</option>
           <option value="조원">조원</option>
         </select>`;
-    row.innerHTML = `
-      <label><input type="checkbox" data-abs="${escapeHtml(a.key)}" /> ${escapeHtml(a.label)}</label>
-      <div class="filter-inputs abs range">
+    const revenueOnlyMin = a.key === "revenue";
+    const inputsHtml = revenueOnlyMin
+      ? `<div class="filter-inputs abs">
+        <input type="number" data-abs-lo="${escapeHtml(a.key)}" step="any" placeholder="이상" title="이상" />
+        ${unitHtml}
+        <span class="unit">이상</span>
+      </div>`
+      : `<div class="filter-inputs abs range">
         <input type="number" data-abs-lo="${escapeHtml(a.key)}" step="any" placeholder="이상" title="이상 (비우면 제한 없음)" />
         <span class="tilde">～</span>
         <input type="number" data-abs-hi="${escapeHtml(a.key)}" step="any" placeholder="이하" title="이하 (비우면 제한 없음)" />
         ${unitHtml}
-      </div>
+      </div>`;
+    row.innerHTML = `
+      <label title="${escapeHtml(a.key === "revenue" ? "한 해 매출 규모. 이 금액 이상만 볼게요." : a.key === "market_cap" ? "회사 시총(억원). 이상·이하로 구간을 정할 수 있어요." : a.label)}">
+        <input type="checkbox" data-abs="${escapeHtml(a.key)}" /> ${escapeHtml(a.label)}
+      </label>
+      ${inputsHtml}
     `;
     absRoot.appendChild(row);
   }
@@ -279,7 +345,7 @@ function collectFilters() {
     abs[a.key] = {
       on: true,
       lo: loOk ? lo : null,
-      hi: hiOk ? hi : null,
+      hi: a.key === "revenue" ? null : hiOk ? hi : null,
       unit: a.key === "market_cap" ? "억원" : unitEl?.value || "억원",
     };
   }
@@ -654,6 +720,9 @@ async function openDetail(code) {
       .join("");
     box.innerHTML = `
       <div class="d-title">
+        <button type="button" class="btn star${isFav(d.stock_code) ? " on" : ""}" data-detail-fav="${escapeHtml(
+          d.stock_code
+        )}" title="즐겨찾기">${isFav(d.stock_code) ? "★" : "☆"}</button>
         <span class="name">${escapeHtml(d.corp_name)}</span>
         <span class="code">${escapeHtml(d.stock_code)}</span>
         ${gradeBadge(d.grade, d.grade_label)}
@@ -898,6 +967,13 @@ function wireEvents() {
       toggleFav(fav.dataset.fav);
       return;
     }
+    const detailFav = e.target.closest("[data-detail-fav]");
+    if (detailFav) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleFav(detailFav.dataset.detailFav);
+      return;
+    }
     if (e.target.closest("[data-chart]")) {
       e.stopPropagation();
       return;
@@ -929,6 +1005,11 @@ function wireEvents() {
       e.clientY <= rect.bottom;
     if (!inside) modal.close();
   });
+  window.addEventListener("popstate", () => {
+    if (isMobileLayout() && $("sidebar").classList.contains("open")) {
+      closeSidebar(true);
+    }
+  });
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && isMobileLayout()) {
       const modal = $("detail-modal");
@@ -943,6 +1024,11 @@ async function init() {
   restoreSidebar();
   setStatus("메타 로딩…");
   try {
+    const localFavs = loadFavorites();
+    const serverFavs = await loadFavoritesFromServer();
+    if ((!serverFavs || !serverFavs.length) && localFavs.length) {
+      await syncFavoritesToServer(localFavs);
+    }
     const meta = await api("/api/meta");
     state.meta = meta;
     buildFiltersUI(meta);
