@@ -589,7 +589,7 @@ input:focus {
 }
 
 .detail-modal {
-  width: min(960px, calc(100vw - 1.5rem));
+  width: min(1040px, calc(100vw - 1.5rem));
   max-height: calc(100vh - 2rem);
   overflow: auto;
   border: 1px solid #3a414d;
@@ -637,6 +637,23 @@ input:focus {
 }
 .d-title .name { color: #f2f5fa; }
 .d-title .code { color: #8b95a8; font-weight: 500; font-size: 1rem; margin-left: 0; }
+.d-chart-section {
+  margin: 0.35rem 0 1rem;
+}
+.d-chart {
+  width: 100%;
+  height: min(420px, 52vh);
+  min-height: 280px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #3a414d;
+  background: #1c2027;
+}
+.d-chart .tradingview-widget-container,
+.d-chart .tradingview-widget-container__widget {
+  width: 100% !important;
+  height: 100% !important;
+}
 .d-tv-btn {
   display: inline-flex;
   align-items: center;
@@ -959,6 +976,10 @@ input:focus {
   .d-title {
     font-size: 1.12rem;
     gap: 0.4rem 0.5rem;
+  }
+  .d-chart {
+    height: min(320px, 42vh);
+    min-height: 240px;
   }
   .d-score {
     font-size: 2.35rem;

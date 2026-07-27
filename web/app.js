@@ -821,9 +821,57 @@ function badgeLabel(badge) {
   return badge || "—";
 }
 
+function clearDetailChart() {
+  const host = document.getElementById("detail-chart");
+  if (host) host.innerHTML = "";
+}
+
+function mountDetailChart(code) {
+  const host = document.getElementById("detail-chart");
+  if (!host) return;
+  host.innerHTML = "";
+  const symbol = `KRX:${padCode(code)}`;
+  const wrap = document.createElement("div");
+  wrap.className = "tradingview-widget-container";
+  wrap.style.width = "100%";
+  wrap.style.height = "100%";
+  const widget = document.createElement("div");
+  widget.className = "tradingview-widget-container__widget";
+  widget.style.width = "100%";
+  widget.style.height = "100%";
+  const script = document.createElement("script");
+  script.type = "text/javascript";
+  script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+  script.async = true;
+  script.text = JSON.stringify({
+    autosize: true,
+    symbol,
+    interval: "D",
+    timezone: "Asia/Seoul",
+    theme: "dark",
+    style: "1",
+    locale: "kr",
+    backgroundColor: "rgba(28, 32, 39, 1)",
+    gridColor: "rgba(58, 65, 77, 0.45)",
+    hide_top_toolbar: false,
+    hide_legend: false,
+    hide_side_toolbar: true,
+    allow_symbol_change: false,
+    save_image: false,
+    calendar: false,
+    withdateranges: true,
+    support_host: "https://www.tradingview.com",
+  });
+  wrap.appendChild(widget);
+  wrap.appendChild(script);
+  host.appendChild(wrap);
+}
+
 async function openDetail(code) {
   const modal = $("detail-modal");
   const box = $("detail-content");
+  clearDetailChart();
+  hideInfoPop();
   box.innerHTML = `<p class="muted">불러오는 중…</p>`;
   modal.showModal();
   try {
@@ -869,8 +917,15 @@ async function openDetail(code) {
         )}" title="즐겨찾기">${isFav(d.stock_code) ? "★" : "☆"}</button>
         <span class="code">${escapeHtml(d.stock_code)}</span>
         ${gradeBadge(d.grade, d.grade_label)}
-        <a class="d-tv-btn" href="${escapeHtml(d.tradingview)}" target="_blank" rel="noopener">TradingView</a>
+        <a class="d-tv-btn" href="${escapeHtml(d.tradingview)}" target="_blank" rel="noopener">새 창</a>
       </div>
+      <section class="d-chart-section">
+        <div class="d-cat-head">
+          <div class="d-cat-title">차트</div>
+          <div class="d-cat-line"></div>
+        </div>
+        <div id="detail-chart" class="d-chart" aria-label="주가 차트"></div>
+      </section>
       <div class="d-score-block">
         <div class="d-score-label">통합 점수 (카테고리 가중)</div>
         <div class="d-score">${d.attractiveness ?? "—"}점</div>
@@ -878,6 +933,7 @@ async function openDetail(code) {
       <div class="d-chips">${chips}</div>
       ${sections}
     `;
+    mountDetailChart(d.stock_code || code);
   } catch (err) {
     box.innerHTML = `<p class="empty">${escapeHtml(err.message)}</p>`;
   }
@@ -1139,7 +1195,10 @@ function wireEvents() {
   $("menu-btn").addEventListener("click", toggleSidebar);
   $("sidebar-close").addEventListener("click", closeSidebar);
   $("sidebar-overlay").addEventListener("click", closeSidebar);
-  $("detail-modal").addEventListener("close", () => hideInfoPop());
+  $("detail-modal").addEventListener("close", () => {
+    hideInfoPop();
+    clearDetailChart();
+  });
   $("detail-modal").addEventListener("click", (e) => {
     if (e.target.closest(".info-btn, .info-pop-float")) return;
     const modal = $("detail-modal");
