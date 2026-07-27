@@ -903,6 +903,9 @@ input:focus {
 .tile-bad { color: var(--bad); }
 .tile-muted { color: #6b7385; }
 
+.fav-ret.up { color: var(--good); font-weight: 600; }
+.fav-ret.down { color: var(--bad); font-weight: 600; }
+
 .empty {
   color: var(--muted);
   padding: 2rem 0.5rem;

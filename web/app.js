@@ -39,85 +39,159 @@ function padCode(code) {
   return String(code ?? "").replace(/\D/g, "").padStart(6, "0");
 }
 
-function loadFavorites() {
+function normalizeFavItem(raw) {
+  const code = padCode(raw?.code || raw);
+  if (!code || code === "000000") return null;
+  let price = raw?.price_at_add;
+  if (price != null && price !== "") {
+    const n = Number(price);
+    price = Number.isFinite(n) && n > 0 ? n : null;
+  } else {
+    price = null;
+  }
+  const added = raw?.added_at ? String(raw.added_at).slice(0, 10) : null;
+  return { code, added_at: added, price_at_add: price };
+}
+
+function loadFavoriteItems() {
   try {
     const raw = localStorage.getItem(FAV_KEY);
-    const arr = raw ? JSON.parse(raw) : [];
-    return Array.isArray(arr) ? arr.map((c) => padCode(c)) : [];
-  } catch {
-    return [];
+    if (!raw) return [];
+    const data = JSON.parse(raw);
+    if (Array.isArray(data)) return data.map((c) => normalizeFavItem({ code: c })).filter(Boolean);
+    if (data?.items) return data.items.map(normalizeFavItem).filter(Boolean);
+    if (data?.codes) return data.codes.map((c) => normalizeFavItem({ code: c })).filter(Boolean);
+  } catch (_) {}
+  return [];
+}
+
+function loadFavorites() {
+  return loadFavoriteItems().map((i) => i.code);
+}
+
+function saveFavoriteItems(items) {
+  const out = [];
+  const seen = new Set();
+  for (const raw of items || []) {
+    const it = normalizeFavItem(raw);
+    if (!it || seen.has(it.code)) continue;
+    seen.add(it.code);
+    out.push(it);
   }
+  try {
+    localStorage.setItem(FAV_KEY, JSON.stringify({ items: out }));
+  } catch (_) {}
+  return out;
+}
+
+function mergeFavoriteItems(local, server) {
+  const by = new Map();
+  for (const raw of [...server, ...local]) {
+    const it = normalizeFavItem(raw);
+    if (!it) continue;
+    const prev = by.get(it.code);
+    if (!prev) {
+      by.set(it.code, it);
+      continue;
+    }
+    by.set(it.code, {
+      code: it.code,
+      added_at:
+        it.added_at && (!prev.added_at || it.added_at < prev.added_at) ? it.added_at : prev.added_at,
+      price_at_add: it.price_at_add ?? prev.price_at_add,
+    });
+  }
+  return [...by.values()];
 }
 
 function saveFavoritesLocal(codes) {
-  const uniq = [...new Set(codes.map((c) => padCode(c)))];
-  try {
-    localStorage.setItem(FAV_KEY, JSON.stringify(uniq));
-  } catch (_) {}
-  return uniq;
+  const items = (codes || []).map((c) => normalizeFavItem({ code: c })).filter(Boolean);
+  return saveFavoriteItems(items);
 }
 
 function isFav(code) {
   return loadFavorites().includes(padCode(code));
 }
 
-async function syncFavoritesToServer(codes) {
-  const uniq = [...new Set(codes.map((c) => padCode(c)))];
-  saveFavoritesLocal(uniq);
+function priceForFavoriteToggle(code) {
+  const c = padCode(code);
+  const row = state.rows.find((r) => padCode(r.stock_code) === c);
+  if (row?.current_price_num != null) return Number(row.current_price_num);
+  const modal = $("detail-modal");
+  if (modal?.open && padCode(modal.dataset.detailCode) === c) {
+    const p = Number(modal.dataset.detailPrice);
+    if (Number.isFinite(p) && p > 0) return p;
+  }
+  return null;
+}
+
+async function syncFavoritesToServer(items) {
+  const uniq = saveFavoriteItems(items);
   try {
     const res = await api("/api/favorites", {
       method: "POST",
-      body: JSON.stringify({ codes: uniq }),
+      body: JSON.stringify({ items: uniq }),
     });
-    if (Array.isArray(res.codes)) saveFavoritesLocal(res.codes);
-    return res.codes || uniq;
+    if (Array.isArray(res.items)) saveFavoriteItems(res.items);
+    return res.items || uniq;
   } catch (_) {
     return uniq;
   }
 }
 
-function scheduleFavoritesSync(codes) {
+function scheduleFavoritesSync(items) {
   clearTimeout(favSyncTimer);
   favSyncTimer = setTimeout(() => {
-    syncFavoritesToServer(codes);
+    syncFavoritesToServer(items);
   }, 200);
 }
 
-async function toggleFav(code) {
+async function toggleFav(code, opts = {}) {
   const c = padCode(code);
-  let favs = loadFavorites();
-  if (favs.includes(c)) favs = favs.filter((x) => x !== c);
-  else favs.push(c);
-  saveFavoritesLocal(favs);
-  scheduleFavoritesSync(favs);
+  let items = loadFavoriteItems();
+  const idx = items.findIndex((i) => i.code === c);
+  if (idx >= 0) {
+    items = items.filter((i) => i.code !== c);
+  } else {
+    const today = new Date().toISOString().slice(0, 10);
+    const price = opts.price ?? priceForFavoriteToggle(c);
+    items.push({
+      code: c,
+      added_at: today,
+      price_at_add: price != null && Number.isFinite(Number(price)) ? Number(price) : null,
+    });
+  }
+  saveFavoriteItems(items);
+  scheduleFavoritesSync(items);
   if (state.mode === "favorites") {
     runScreen();
   } else {
     renderList(state.rows);
   }
-  // 상세가 열려 있으면 별 상태 갱신
   const modal = $("detail-modal");
   const star = modal?.querySelector?.("[data-detail-fav]");
   if (star && padCode(star.dataset.detailFav) === c) {
-    const on = favs.includes(c);
+    const on = items.some((i) => i.code === c);
     star.textContent = on ? "★" : "☆";
     star.classList.toggle("on", on);
   }
 }
 
 async function loadFavoritesFromServer() {
-  const local = loadFavorites();
+  const local = loadFavoriteItems();
   try {
     const res = await api("/api/favorites");
-    if (Array.isArray(res.codes)) {
-      const server = res.codes.map((c) => padCode(c));
-      const merged = [...new Set([...local, ...server])];
-      saveFavoritesLocal(merged);
-      if (merged.length > server.length) {
-        scheduleFavoritesSync(merged);
-      }
-      return merged;
+    const server = Array.isArray(res.items)
+      ? res.items.map(normalizeFavItem).filter(Boolean)
+      : Array.isArray(res.codes)
+        ? res.codes.map((c) => normalizeFavItem({ code: c })).filter(Boolean)
+        : [];
+    const merged = mergeFavoriteItems(local, server);
+    saveFavoriteItems(merged);
+    if (JSON.stringify(merged) !== JSON.stringify(server)) {
+      scheduleFavoritesSync(merged);
     }
+    return merged;
   } catch (_) {}
   return local;
 }
@@ -658,6 +732,15 @@ function sortValue(row, key) {
   if (key === "corp_name" || key === "market" || key === "stock_code") {
     return String(row[key] ?? "");
   }
+  if (key === "fav_added_at") return String(row.fav_added_at ?? "");
+  if (key === "fav_price_at_add") {
+    const n = row.fav_price_at_add_num;
+    return n != null && Number.isFinite(Number(n)) ? Number(n) : null;
+  }
+  if (key === "fav_return_pct_display") {
+    const n = row.fav_return_pct_num;
+    return n != null && Number.isFinite(Number(n)) ? Number(n) : null;
+  }
   const num = row[`${key}_num`];
   if (num != null && num !== "" && Number.isFinite(Number(num))) return Number(num);
   const raw = row[key];
@@ -716,6 +799,23 @@ function gradeBadge(grade, label) {
   return `<span class="badge ${cls}">${escapeHtml(label || grade || "-")}</span>`;
 }
 
+function listMetaForMode(meta) {
+  if (!meta) return { columns: [], labels: {} };
+  if (state.mode === "favorites") {
+    return {
+      columns: meta.favorites_list_columns || meta.list_columns || [],
+      labels: meta.favorites_list_labels || meta.list_labels || {},
+    };
+  }
+  return { columns: meta.list_columns || [], labels: meta.list_labels || {} };
+}
+
+function favReturnClass(row) {
+  const n = row.fav_return_pct_num;
+  if (n == null || n === "") return "fav-ret";
+  return Number(n) >= 0 ? "fav-ret up" : "fav-ret down";
+}
+
 function colVal(row, key) {
   if (key === "corp_name") return row.corp_name;
   if (key === "stock_code") return row.stock_code;
@@ -726,8 +826,7 @@ function colVal(row, key) {
 }
 
 function renderListHead(meta) {
-  const labels = meta.list_labels || {};
-  const cols = meta.list_columns || [];
+  const { columns: cols, labels } = listMetaForMode(meta);
   const cells = [
     `<span></span>`,
     ...cols.map((c) => {
@@ -763,13 +862,18 @@ function renderCell(r, c) {
       r.tradingview
     )}" target="_blank" rel="noopener" data-chart>차트</a></span>`;
   }
+  if (c === "fav_return_pct_display") {
+    return `<span class="c-center ${favReturnClass(r)}">${escapeHtml(
+      String(r.fav_return_pct_display ?? "-")
+    )}</span>`;
+  }
   return `<span class="c-center">${escapeHtml(String(colVal(r, c)))}</span>`;
 }
 
 function renderList(rows) {
   state.rows = applySort(rows || []);
   const meta = state.meta;
-  const cols = meta?.list_columns || [];
+  const { columns: cols } = listMetaForMode(meta);
   const body = $("list-body");
   const cards = $("cards-body");
 
@@ -795,6 +899,12 @@ function renderList(rows) {
     .map((r) => {
       const on = isFav(r.stock_code);
       const fav = on ? "★" : "☆";
+      const favLine =
+        state.mode === "favorites"
+          ? `<p class="mcard-meta mcard-fav">${escapeHtml(r.fav_added_at || "-")} · 등록 ${escapeHtml(
+              r.fav_price_at_add || "-"
+            )} · <span class="${favReturnClass(r)}">${escapeHtml(r.fav_return_pct_display || "-")}</span></p>`
+          : "";
       return `<div class="mcard" data-code="${escapeHtml(r.stock_code)}" data-detail="${escapeHtml(r.stock_code)}" role="button" tabindex="0">
         <div class="mcard-main">
           <div class="mcard-head">
@@ -803,6 +913,7 @@ function renderList(rows) {
               <button type="button" class="btn star${on ? " on" : ""}" data-fav="${escapeHtml(r.stock_code)}" aria-label="즐겨찾기">${fav}</button>
             </div>
             <p class="mcard-meta">${escapeHtml(r.stock_code)} · ${escapeHtml(r.market)}</p>
+            ${favLine}
           </div>
           <div class="mcard-side">
             <div class="mcard-score">${escapeHtml(String(r.attractiveness ?? "-"))}<span>점</span></div>
@@ -1364,6 +1475,11 @@ async function openDetail(code) {
   modal.showModal();
   try {
     const d = await api(`/api/detail/${encodeURIComponent(code)}`);
+    modal.dataset.detailCode = padCode(d.stock_code || code);
+    modal.dataset.detailPrice =
+      d.current_price_num != null && Number.isFinite(Number(d.current_price_num))
+        ? String(d.current_price_num)
+        : "";
     const chips = (d.category_chips || [])
       .map(
         (c) => `<div class="d-chip">
@@ -1473,7 +1589,9 @@ async function runScreen(extra = {}) {
     } else if (mode === "search") {
       body.code = state.selectedCode;
     } else if (mode === "favorites") {
-      body.codes = loadFavorites();
+      const items = loadFavoriteItems();
+      body.codes = items.map((i) => i.code);
+      body.items = items;
     }
     const data = await api("/api/screen", {
       method: "POST",
@@ -1517,6 +1635,7 @@ function setMode(mode) {
   document.querySelectorAll(".tab").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.mode === mode);
   });
+  if (state.meta) renderListHead(state.meta);
   $("panel-search").hidden = mode !== "search";
   $("panel-filter").hidden = mode !== "filter";
   $("panel-favorites").hidden = mode !== "favorites";

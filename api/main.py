@@ -33,7 +33,13 @@ from criteria import (  # noqa: E402
     specs_in_category,
 )
 from filter_store import load_saved_filters, persist_filters  # noqa: E402
-from favorites_store import load_favorites, persist_favorites  # noqa: E402
+from favorites_store import (  # noqa: E402
+    load_favorite_items,
+    load_favorites,
+    load_favorites_map,
+    merge_favorite_items,
+    persist_favorites,
+)
 from interpret import interpret_metric  # noqa: E402
 from price import load_price_metrics, price_cache_caption, fetch_chart_bars  # noqa: E402
 from screener import (  # noqa: E402
@@ -193,11 +199,18 @@ def reload_data() -> None:
     get_prices()
 
 
+class FavoriteItemIn(BaseModel):
+    code: str
+    added_at: str | None = None
+    price_at_add: float | None = None
+
+
 class ScreenBody(BaseModel):
     mode: str = "filter"  # filter | search | favorites
     market: str = "ALL"
     code: str | None = None
     codes: list[str] = Field(default_factory=list)
+    items: list[FavoriteItemIn] = Field(default_factory=list)
     filters: dict[str, list[float | None]] = Field(default_factory=dict)
     abs: dict[str, dict[str, Any]] = Field(default_factory=dict)
     limit: int = 200
@@ -292,6 +305,63 @@ WEB_LIST_LABELS = {
     "pct_from_avg_52w": "주가현위치",
 }
 
+WEB_FAVORITES_LIST_COLUMNS = [
+    "corp_name",
+    "stock_code",
+    "market",
+    "chart",
+    "grade",
+    "attractiveness",
+    "market_cap",
+    "current_price",
+    "fav_added_at",
+    "fav_price_at_add",
+    "fav_return_pct_display",
+]
+
+WEB_FAVORITES_LIST_LABELS = {
+    **WEB_LIST_LABELS,
+    "fav_added_at": "등록일",
+    "fav_price_at_add": "등록시 가격",
+    "fav_return_pct_display": "수익률",
+}
+
+
+def _favorites_map_for_screen(body: ScreenBody) -> dict[str, dict[str, Any]]:
+    server = list(load_favorites_map().values())
+    if body.items:
+        client = [x.model_dump() for x in body.items]
+        merged = merge_favorite_items(server, client)
+        return {x["code"]: x for x in merged}
+    fav_map = load_favorites_map()
+    for code in [str(c).zfill(6) for c in body.codes if str(c).strip()]:
+        if code not in fav_map:
+            fav_map[code] = {"code": code, "added_at": None, "price_at_add": None}
+    return fav_map
+
+
+def _enrich_favorites_row(item: dict[str, Any], meta: dict[str, Any]) -> dict[str, Any]:
+    added = meta.get("added_at")
+    price_add = meta.get("price_at_add")
+    item["fav_added_at"] = added or "-"
+    if price_add is not None:
+        item["fav_price_at_add"] = format_metric_value("current_price", price_add)
+        item["fav_price_at_add_num"] = float(price_add)
+    else:
+        item["fav_price_at_add"] = "-"
+        item["fav_price_at_add_num"] = None
+
+    cur = item.get("current_price_num")
+    if cur is not None and price_add is not None and float(price_add) > 0:
+        ret = (float(cur) - float(price_add)) / float(price_add) * 100
+        item["fav_return_pct_num"] = round(ret, 2)
+        sign = "+" if ret > 0 else ""
+        item["fav_return_pct_display"] = f"{sign}{ret:.1f}%"
+    else:
+        item["fav_return_pct_num"] = None
+        item["fav_return_pct_display"] = "-"
+    return item
+
 
 @app.get("/health")
 def health() -> dict[str, str]:
@@ -328,6 +398,8 @@ def api_meta() -> dict[str, Any]:
         "abs_specs": [{"key": k, "label": lab} for k, lab in ABS_SPECS],
         "list_columns": WEB_LIST_COLUMNS,
         "list_labels": WEB_LIST_LABELS,
+        "favorites_list_columns": WEB_FAVORITES_LIST_COLUMNS,
+        "favorites_list_labels": WEB_FAVORITES_LIST_LABELS,
         "saved_filters": load_saved_filters(),
     }
 
@@ -416,11 +488,23 @@ def api_screen(body: ScreenBody) -> dict[str, Any]:
             merged = apply_range_filters(merged, price_f)
 
     scored = attach_scores(merged)
-    scored = scored.sort_values("attractiveness", ascending=False, na_position="last")
-    total = int(len(scored))
-    limit = max(1, min(int(body.limit or 200), 500))
-    show = scored.head(limit)
-    rows = [_row_list_item(r) for _, r in show.iterrows()]
+    if mode == "favorites":
+        fav_map = _favorites_map_for_screen(body)
+        total = int(len(scored))
+        limit = max(1, min(int(body.limit or 200), 500))
+        show = scored.head(limit)
+        rows = []
+        for _, r in show.iterrows():
+            item = _row_list_item(r)
+            code = item["stock_code"]
+            rows.append(_enrich_favorites_row(item, fav_map.get(code, {})))
+        rows.sort(key=lambda x: x.get("fav_added_at") or "", reverse=True)
+    else:
+        scored = scored.sort_values("attractiveness", ascending=False, na_position="last")
+        total = int(len(scored))
+        limit = max(1, min(int(body.limit or 200), 500))
+        show = scored.head(limit)
+        rows = [_row_list_item(r) for _, r in show.iterrows()]
     return {
         "count": total,
         "shown": len(rows),
@@ -565,6 +649,12 @@ def _build_detail(row: pd.Series) -> dict[str, Any]:
         "stock_code": code,
         "corp_name": name,
         "tradingview": tradingview_chart_url(code),
+        "current_price": (
+            format_metric_value("current_price", row.get("current_price"))
+            if _has(row.get("current_price"))
+            else None
+        ),
+        "current_price_num": _clean_num(row.get("current_price")),
         "attractiveness": int(sc["attractiveness"]),
         "grade": grade,
         "grade_label": GRADE_UI.get(grade, (grade, ""))[0],
@@ -652,18 +742,25 @@ def api_save_filters(body: FiltersBody) -> dict[str, Any]:
 
 class FavoritesBody(BaseModel):
     codes: list[str] = Field(default_factory=list)
+    items: list[FavoriteItemIn] = Field(default_factory=list)
 
 
 @app.get("/api/favorites")
 def api_get_favorites() -> dict[str, Any]:
-    codes = load_favorites()
-    return {"codes": codes, "count": len(codes)}
+    items = load_favorite_items()
+    codes = [x["code"] for x in items]
+    return {"items": items, "codes": codes, "count": len(codes)}
 
 
 @app.post("/api/favorites")
 def api_save_favorites(body: FavoritesBody) -> dict[str, Any]:
-    codes, where = persist_favorites(list(body.codes or []))
-    return {"status": "ok", "where": where, "codes": codes, "count": len(codes)}
+    if body.items:
+        raw = [x.model_dump() for x in body.items]
+    else:
+        raw = list(body.codes or [])
+    items, where = persist_favorites(raw)
+    codes = [x["code"] for x in items]
+    return {"status": "ok", "where": where, "items": items, "codes": codes, "count": len(codes)}
 
 
 @app.get("/")
