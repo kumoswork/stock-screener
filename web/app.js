@@ -206,6 +206,130 @@ function suffixFor(spec) {
   return u;
 }
 
+const ABS_HELP = {
+  market_cap: "회사 시총(억원). 이상·이하로 구간을 정할 수 있어요.",
+  revenue: "한 해 매출 규모. 이 금액 이상만 볼게요.",
+  operating_profit: "본업으로 번 이익 규모예요. 이 금액 이상만 볼게요.",
+  net_income: "세금 등까지 반영한 최종 이익 규모예요. 이상·이하로 구간을 정할 수 있어요.",
+};
+
+function infoBtnHtml(text) {
+  const t = (text || "").trim();
+  if (!t) return "";
+  return `<button type="button" class="info-btn" aria-label="설명" data-info="${escapeHtml(t)}">ⓘ</button>`;
+}
+
+let _infoPop = null;
+let _infoBtn = null;
+let _infoHideTimer = null;
+
+function hideInfoPop() {
+  clearTimeout(_infoHideTimer);
+  _infoHideTimer = null;
+  if (_infoPop) {
+    _infoPop.remove();
+    _infoPop = null;
+  }
+  if (_infoBtn) {
+    _infoBtn.classList.remove("open");
+    _infoBtn.setAttribute("aria-expanded", "false");
+    _infoBtn = null;
+  }
+}
+
+function placeInfoPop(btn, pop) {
+  const r = btn.getBoundingClientRect();
+  const pad = 10;
+  pop.style.visibility = "hidden";
+  const pw = pop.offsetWidth;
+  const ph = pop.offsetHeight;
+  let top = r.bottom + 8;
+  let left = r.left;
+  if (top + ph > window.innerHeight - pad) top = Math.max(pad, r.top - ph - 8);
+  if (left + pw > window.innerWidth - pad) left = window.innerWidth - pw - pad;
+  if (left < pad) left = pad;
+  pop.style.top = `${Math.round(top)}px`;
+  pop.style.left = `${Math.round(left)}px`;
+  pop.style.visibility = "visible";
+}
+
+function showInfoPop(btn) {
+  const text = (btn.dataset.info || "").trim();
+  if (!text) return;
+  clearTimeout(_infoHideTimer);
+  if (_infoBtn === btn && _infoPop) {
+    placeInfoPop(btn, _infoPop);
+    return;
+  }
+  hideInfoPop();
+  const pop = document.createElement("div");
+  pop.className = "info-pop-float";
+  pop.setAttribute("role", "tooltip");
+  pop.textContent = text;
+  document.body.appendChild(pop);
+  _infoPop = pop;
+  _infoBtn = btn;
+  btn.classList.add("open");
+  btn.setAttribute("aria-expanded", "true");
+  placeInfoPop(btn, pop);
+}
+
+function scheduleHideInfoPop() {
+  clearTimeout(_infoHideTimer);
+  _infoHideTimer = setTimeout(() => hideInfoPop(), 160);
+}
+
+function wireInfoTips() {
+  document.addEventListener(
+    "click",
+    (e) => {
+      const btn = e.target.closest(".info-btn");
+      if (btn) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (_infoBtn === btn) hideInfoPop();
+        else showInfoPop(btn);
+        return;
+      }
+      if (_infoPop && !e.target.closest(".info-pop-float")) hideInfoPop();
+    },
+    true
+  );
+  document.addEventListener("pointerover", (e) => {
+    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+    const btn = e.target.closest(".info-btn");
+    if (btn) showInfoPop(btn);
+  });
+  document.addEventListener("pointerout", (e) => {
+    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+    const btn = e.target.closest(".info-btn");
+    if (!btn) return;
+    const to = e.relatedTarget;
+    if (to && (btn.contains(to) || _infoPop?.contains(to))) return;
+    scheduleHideInfoPop();
+  });
+  document.addEventListener(
+    "pointerover",
+    (e) => {
+      if (!_infoPop || !e.target.closest(".info-pop-float")) return;
+      clearTimeout(_infoHideTimer);
+    },
+    true
+  );
+  document.addEventListener(
+    "pointerout",
+    (e) => {
+      if (!_infoPop || !e.target.closest(".info-pop-float")) return;
+      const to = e.relatedTarget;
+      if (to && (_infoBtn?.contains(to) || _infoPop.contains(to))) return;
+      scheduleHideInfoPop();
+    },
+    true
+  );
+  window.addEventListener("scroll", () => hideInfoPop(), true);
+  window.addEventListener("resize", () => hideInfoPop());
+}
+
 function buildFiltersUI(meta) {
   const absRoot = $("abs-filters");
   const listRoot = $("filter-list");
@@ -221,8 +345,8 @@ function buildFiltersUI(meta) {
           <option value="억원">억원</option>
           <option value="조원">조원</option>
         </select>`;
-    const revenueOnlyMin = a.key === "revenue";
-    const inputsHtml = revenueOnlyMin
+    const minOnly = a.key === "revenue" || a.key === "operating_profit";
+    const inputsHtml = minOnly
       ? `<div class="filter-inputs abs">
         <input type="number" data-abs-lo="${escapeHtml(a.key)}" step="any" placeholder="이상" title="이상" />
         ${unitHtml}
@@ -234,10 +358,14 @@ function buildFiltersUI(meta) {
         <input type="number" data-abs-hi="${escapeHtml(a.key)}" step="any" placeholder="이하" title="이하 (비우면 제한 없음)" />
         ${unitHtml}
       </div>`;
+    const help = ABS_HELP[a.key] || a.label;
     row.innerHTML = `
-      <label title="${escapeHtml(a.key === "revenue" ? "한 해 매출 규모. 이 금액 이상만 볼게요." : a.key === "market_cap" ? "회사 시총(억원). 이상·이하로 구간을 정할 수 있어요." : a.label)}">
-        <input type="checkbox" data-abs="${escapeHtml(a.key)}" /> ${escapeHtml(a.label)}
-      </label>
+      <div class="filter-lab">
+        <label>
+          <input type="checkbox" data-abs="${escapeHtml(a.key)}" /> ${escapeHtml(a.label)}
+        </label>
+        ${infoBtnHtml(help)}
+      </div>
       ${inputsHtml}
     `;
     absRoot.appendChild(row);
@@ -282,10 +410,13 @@ function buildFiltersUI(meta) {
       }
 
       row.innerHTML = `
-        <label title="${escapeHtml(spec.help_text)}">
-          <input type="checkbox" data-f-on="${escapeHtml(spec.key)}" />
-          ${escapeHtml(spec.label)}
-        </label>
+        <div class="filter-lab">
+          <label>
+            <input type="checkbox" data-f-on="${escapeHtml(spec.key)}" />
+            ${escapeHtml(spec.label)}
+          </label>
+          ${infoBtnHtml(spec.help_text)}
+        </div>
         ${inputsHtml}
       `;
       listRoot.appendChild(row);
@@ -345,7 +476,7 @@ function collectFilters() {
     abs[a.key] = {
       on: true,
       lo: loOk ? lo : null,
-      hi: a.key === "revenue" ? null : hiOk ? hi : null,
+      hi: a.key === "revenue" || a.key === "operating_profit" ? null : hiOk ? hi : null,
       unit: a.key === "market_cap" ? "억원" : unitEl?.value || "억원",
     };
   }
@@ -695,11 +826,9 @@ async function openDetail(code) {
       .map((sec) => {
         const tiles = (sec.tiles || [])
           .map((t) => {
-            const tip = t.help
-              ? ` data-tip="${escapeHtml(t.help)}" title="${escapeHtml(t.help)}"`
-              : "";
-            return `<div class="d-tile"${tip}>
-              <div class="lab">${escapeHtml(t.label)}</div>
+            const tip = infoBtnHtml(t.help);
+            return `<div class="d-tile">
+              <div class="lab">${escapeHtml(t.label)}${tip}</div>
               <div class="val">${escapeHtml(t.value)}</div>
               <div class="badge-line ${badgeClass(t.badge)}">${escapeHtml(badgeLabel(t.badge))}</div>
             </div>`;
@@ -720,10 +849,10 @@ async function openDetail(code) {
       .join("");
     box.innerHTML = `
       <div class="d-title">
+        <span class="name">${escapeHtml(d.corp_name)}</span>
         <button type="button" class="btn star${isFav(d.stock_code) ? " on" : ""}" data-detail-fav="${escapeHtml(
           d.stock_code
         )}" title="즐겨찾기">${isFav(d.stock_code) ? "★" : "☆"}</button>
-        <span class="name">${escapeHtml(d.corp_name)}</span>
         <span class="code">${escapeHtml(d.stock_code)}</span>
         ${gradeBadge(d.grade, d.grade_label)}
         <a class="d-tv-btn" href="${escapeHtml(d.tradingview)}" target="_blank" rel="noopener">TradingView</a>
@@ -825,6 +954,7 @@ function setMode(mode) {
 }
 
 function wireEvents() {
+  wireInfoTips();
   document.querySelectorAll(".tab").forEach((btn) => {
     btn.addEventListener("click", () => setMode(btn.dataset.mode));
   });
@@ -995,7 +1125,9 @@ function wireEvents() {
   $("menu-btn").addEventListener("click", toggleSidebar);
   $("sidebar-close").addEventListener("click", closeSidebar);
   $("sidebar-overlay").addEventListener("click", closeSidebar);
+  $("detail-modal").addEventListener("close", () => hideInfoPop());
   $("detail-modal").addEventListener("click", (e) => {
+    if (e.target.closest(".info-btn, .info-pop-float")) return;
     const modal = $("detail-modal");
     const rect = modal.getBoundingClientRect();
     const inside =

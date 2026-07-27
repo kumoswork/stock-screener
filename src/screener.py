@@ -272,7 +272,7 @@ def render_abs_filters(filters: dict) -> None:
 
     st.markdown("**절대 금액 (이상·이하)**")
     for key, label in ABS_SPECS:
-        if key == "revenue":
+        if key == "revenue" or key == "operating_profit":
             c_chk, c_lo, c_unit = st.columns([1.15, 0.95, 0.9])
             with c_chk:
                 st.checkbox(label, key=f"abs_{key}")
