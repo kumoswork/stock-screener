@@ -638,7 +638,31 @@ input:focus {
 .d-title .name { color: #f2f5fa; }
 .d-title .code { color: #8b95a8; font-weight: 500; font-size: 1rem; margin-left: 0; }
 .d-chart-section {
-  margin: 0.35rem 0 1rem;
+  margin: 0.85rem 0 0.35rem;
+}
+.d-chart-tf {
+  display: inline-flex;
+  gap: 0.2rem;
+  flex: 0 0 auto;
+  margin-left: 0.35rem;
+}
+.d-chart-tf button {
+  appearance: none;
+  border: 1px solid #4a5568;
+  background: #262b33;
+  color: #9aa3b5;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.18rem 0.55rem;
+  cursor: pointer;
+}
+.d-chart-tf button.active,
+.d-chart-tf button:hover {
+  color: #fff;
+  border-color: var(--accent);
+  background: rgba(23, 133, 163, 0.35);
 }
 .d-chart {
   width: 100%;
@@ -648,11 +672,12 @@ input:focus {
   overflow: hidden;
   border: 1px solid #3a414d;
   background: #1c2027;
+  position: relative;
 }
-.d-chart .tradingview-widget-container,
-.d-chart .tradingview-widget-container__widget {
-  width: 100% !important;
-  height: 100% !important;
+.d-chart-msg {
+  margin: 0;
+  padding: 1.2rem 1rem;
+  text-align: center;
 }
 .d-tv-btn {
   display: inline-flex;

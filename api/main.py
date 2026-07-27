@@ -35,7 +35,7 @@ from criteria import (  # noqa: E402
 from filter_store import load_saved_filters, persist_filters  # noqa: E402
 from favorites_store import load_favorites, persist_favorites  # noqa: E402
 from interpret import interpret_metric  # noqa: E402
-from price import load_price_metrics, price_cache_caption  # noqa: E402
+from price import load_price_metrics, price_cache_caption, fetch_chart_bars  # noqa: E402
 from screener import (  # noqa: E402
     apply_range_filters,
     attach_scores,
@@ -597,9 +597,23 @@ def api_detail(code: str) -> dict[str, Any]:
             ):
                 if c in ph.columns:
                     row[c] = ph.iloc[0][c]
-    # attach score fields onto row for consistency
     scored = attach_scores(pd.DataFrame([row]))
     return _build_detail(scored.iloc[0])
+
+
+@app.get("/api/chart/{code}")
+def api_chart(code: str) -> dict[str, Any]:
+    code = str(code).zfill(6)
+    market = None
+    fin = get_financials()
+    if not fin.empty:
+        hit = fin[fin["stock_code"].astype(str).str.zfill(6) == code]
+        if not hit.empty and "market" in hit.columns:
+            market = hit.iloc[0].get("market")
+    bars = fetch_chart_bars(code, market=None if market is None else str(market))
+    if not bars:
+        raise HTTPException(404, "차트 데이터를 불러오지 못했습니다.")
+    return {"stock_code": code, "bars": bars}
 
 
 @app.post("/api/reload")

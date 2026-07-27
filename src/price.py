@@ -379,3 +379,81 @@ def price_cache_caption() -> str:
     if when:
         return f"주가 캐시: {when} ({rows}종목)"
     return f"주가 캐시: {rows}종목"
+
+
+def _normalize_ohlcv_cols(df: pd.DataFrame) -> pd.DataFrame | None:
+    if df is None or df.empty:
+        return None
+    rename = {}
+    for src, dst in (
+        ("Open", "Open"),
+        ("High", "High"),
+        ("Low", "Low"),
+        ("Close", "Close"),
+        ("시가", "Open"),
+        ("고가", "High"),
+        ("저가", "Low"),
+        ("종가", "Close"),
+    ):
+        if src in df.columns and src != dst:
+            rename[src] = dst
+    out = df.rename(columns=rename) if rename else df
+    need = ("Open", "High", "Low", "Close")
+    if any(c not in out.columns for c in need):
+        return None
+    out = out.loc[:, list(need)].dropna()
+    if out.empty:
+        return None
+    return out.sort_index()
+
+
+def fetch_chart_bars(
+    code: str,
+    market: str | None = None,
+    years: float = 5.0,
+    timeout_s: float = 14.0,
+) -> list[dict]:
+    """상세 차트용 일봉. Naver → Yahoo → FDR."""
+    code = str(code).zfill(6)
+    end = datetime.now().date()
+    start = end - timedelta(days=int(365.25 * years) + 40)
+    start_s = start.isoformat()
+    end_s = (end + timedelta(days=1)).isoformat()
+
+    def _fetch() -> pd.DataFrame | None:
+        ohlcv = None
+        try:
+            ohlcv = _naver_ohlcv(code, start_s, end_s)
+        except Exception:
+            ohlcv = None
+        if ohlcv is None or ohlcv.empty:
+            try:
+                ohlcv = _yahoo_ohlcv(code, start_s, end_s, market)
+            except Exception:
+                ohlcv = None
+        if ohlcv is None or ohlcv.empty:
+            try:
+                ohlcv = _fdr_ohlcv(code, start_s, end_s)
+            except Exception:
+                ohlcv = None
+        return _normalize_ohlcv_cols(ohlcv) if ohlcv is not None else None
+
+    df = _run_with_timeout(_fetch, timeout_s)
+    if df is None or df.empty:
+        return []
+    bars: list[dict] = []
+    for idx, row in df.iterrows():
+        ts = pd.Timestamp(idx)
+        if getattr(ts, "tzinfo", None) is not None:
+            ts = ts.tz_convert("Asia/Seoul").tz_localize(None)
+        bars.append(
+            {
+                "date": ts.strftime("%Y-%m-%d"),
+                "o": float(row["Open"]),
+                "h": float(row["High"]),
+                "l": float(row["Low"]),
+                "c": float(row["Close"]),
+            }
+        )
+    return bars
+

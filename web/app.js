@@ -821,50 +821,149 @@ function badgeLabel(badge) {
   return badge || "—";
 }
 
+let _detailChartApi = null;
+let _detailCandleSeries = null;
+let _detailBars = null;
+let _detailTf = "M";
+let _detailChartRo = null;
+let _lwChartsPromise = null;
+
 function clearDetailChart() {
   const host = document.getElementById("detail-chart");
+  if (_detailChartApi) {
+    try {
+      _detailChartApi.remove();
+    } catch (_) {}
+    _detailChartApi = null;
+  }
+  _detailCandleSeries = null;
+  _detailBars = null;
+  _detailTf = "M";
+  if (_detailChartRo) {
+    try {
+      _detailChartRo.disconnect();
+    } catch (_) {}
+    _detailChartRo = null;
+  }
   if (host) host.innerHTML = "";
 }
 
-function mountDetailChart(code) {
+function loadLightweightCharts() {
+  if (window.LightweightCharts) return Promise.resolve(window.LightweightCharts);
+  if (_lwChartsPromise) return _lwChartsPromise;
+  _lwChartsPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://unpkg.com/lightweight-charts@4.2.1/dist/lightweight-charts.standalone.production.js";
+    s.async = true;
+    s.onload = () => resolve(window.LightweightCharts);
+    s.onerror = () => reject(new Error("차트 라이브러리를 불러오지 못했습니다."));
+    document.head.appendChild(s);
+  });
+  return _lwChartsPromise;
+}
+
+function aggregateBars(bars, tf) {
+  if (!bars?.length) return [];
+  if (tf === "D") {
+    return bars.map((b) => ({
+      time: b.date,
+      open: b.o,
+      high: b.h,
+      low: b.l,
+      close: b.c,
+    }));
+  }
+  const map = new Map();
+  for (const b of bars) {
+    const [y, m, d] = b.date.split("-").map(Number);
+    let time;
+    let key;
+    if (tf === "M") {
+      key = `${y}-${String(m).padStart(2, "0")}`;
+      time = `${key}-01`;
+    } else {
+      const dt = new Date(Date.UTC(y, m - 1, d));
+      const dn = dt.getUTCDay();
+      const diff = dn === 0 ? -6 : 1 - dn;
+      dt.setUTCDate(dt.getUTCDate() + diff);
+      time = dt.toISOString().slice(0, 10);
+      key = time;
+    }
+    const g = map.get(key);
+    if (!g) {
+      map.set(key, { time, open: b.o, high: b.h, low: b.l, close: b.c });
+    } else {
+      g.high = Math.max(g.high, b.h);
+      g.low = Math.min(g.low, b.l);
+      g.close = b.c;
+    }
+  }
+  return [...map.values()];
+}
+
+function applyDetailChartTf(tf) {
+  _detailTf = tf;
+  document.querySelectorAll("[data-chart-tf]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.chartTf === tf);
+  });
+  if (!_detailCandleSeries || !_detailBars) return;
+  const data = aggregateBars(_detailBars, tf);
+  _detailCandleSeries.setData(data);
+  if (_detailChartApi && data.length) _detailChartApi.timeScale().fitContent();
+}
+
+async function mountDetailChart(code) {
   const host = document.getElementById("detail-chart");
   if (!host) return;
-  host.innerHTML = "";
-  const symbol = `KRX:${padCode(code)}`;
-  const wrap = document.createElement("div");
-  wrap.className = "tradingview-widget-container";
-  wrap.style.width = "100%";
-  wrap.style.height = "100%";
-  const widget = document.createElement("div");
-  widget.className = "tradingview-widget-container__widget";
-  widget.style.width = "100%";
-  widget.style.height = "100%";
-  const script = document.createElement("script");
-  script.type = "text/javascript";
-  script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
-  script.async = true;
-  script.text = JSON.stringify({
-    autosize: true,
-    symbol,
-    interval: "D",
-    timezone: "Asia/Seoul",
-    theme: "dark",
-    style: "1",
-    locale: "kr",
-    backgroundColor: "rgba(28, 32, 39, 1)",
-    gridColor: "rgba(58, 65, 77, 0.45)",
-    hide_top_toolbar: false,
-    hide_legend: false,
-    hide_side_toolbar: true,
-    allow_symbol_change: false,
-    save_image: false,
-    calendar: false,
-    withdateranges: true,
-    support_host: "https://www.tradingview.com",
-  });
-  wrap.appendChild(widget);
-  wrap.appendChild(script);
-  host.appendChild(wrap);
+  host.innerHTML = `<p class="d-chart-msg muted">차트 불러오는 중…</p>`;
+  try {
+    const [LW, data] = await Promise.all([
+      loadLightweightCharts(),
+      api(`/api/chart/${encodeURIComponent(padCode(code))}`),
+    ]);
+    if (!document.getElementById("detail-chart")) return;
+    const bars = data.bars || [];
+    if (!bars.length) {
+      host.innerHTML = `<p class="d-chart-msg muted">차트 데이터가 없습니다.</p>`;
+      return;
+    }
+    _detailBars = bars;
+    host.innerHTML = "";
+    const chart = LW.createChart(host, {
+      autoSize: true,
+      layout: {
+        background: { color: "#1c2027" },
+        textColor: "#9aa3b5",
+      },
+      grid: {
+        vertLines: { color: "rgba(58, 65, 77, 0.35)" },
+        horzLines: { color: "rgba(58, 65, 77, 0.35)" },
+      },
+      rightPriceScale: { borderColor: "#3a414d" },
+      timeScale: { borderColor: "#3a414d" },
+      crosshair: { mode: LW.CrosshairMode.Normal },
+    });
+    const series = chart.addCandlestickSeries({
+      upColor: "#f07178",
+      downColor: "#7eb6ff",
+      borderUpColor: "#f07178",
+      borderDownColor: "#7eb6ff",
+      wickUpColor: "#f07178",
+      wickDownColor: "#7eb6ff",
+    });
+    _detailChartApi = chart;
+    _detailCandleSeries = series;
+    applyDetailChartTf(_detailTf || "M");
+    _detailChartRo = new ResizeObserver(() => {
+      try {
+        chart.applyOptions({ width: host.clientWidth, height: host.clientHeight });
+      } catch (_) {}
+    });
+    _detailChartRo.observe(host);
+  } catch (err) {
+    if (!document.getElementById("detail-chart")) return;
+    host.innerHTML = `<p class="d-chart-msg muted">${escapeHtml(err.message || "차트를 불러오지 못했습니다.")}</p>`;
+  }
 }
 
 async function openDetail(code) {
@@ -917,22 +1016,32 @@ async function openDetail(code) {
         )}" title="즐겨찾기">${isFav(d.stock_code) ? "★" : "☆"}</button>
         <span class="code">${escapeHtml(d.stock_code)}</span>
         ${gradeBadge(d.grade, d.grade_label)}
-        <a class="d-tv-btn" href="${escapeHtml(d.tradingview)}" target="_blank" rel="noopener">새 창</a>
+        <a class="d-tv-btn" href="${escapeHtml(d.tradingview)}" target="_blank" rel="noopener">TradingView</a>
       </div>
-      <section class="d-chart-section">
-        <div class="d-cat-head">
-          <div class="d-cat-title">차트</div>
-          <div class="d-cat-line"></div>
-        </div>
-        <div id="detail-chart" class="d-chart" aria-label="주가 차트"></div>
-      </section>
       <div class="d-score-block">
         <div class="d-score-label">통합 점수 (카테고리 가중)</div>
         <div class="d-score">${d.attractiveness ?? "—"}점</div>
       </div>
       <div class="d-chips">${chips}</div>
+      <section class="d-chart-section">
+        <div class="d-cat-head">
+          <div class="d-cat-title">차트</div>
+          <div class="d-cat-line"></div>
+          <div class="d-chart-tf" role="group" aria-label="차트 주기">
+            <button type="button" data-chart-tf="D">일</button>
+            <button type="button" data-chart-tf="W">주</button>
+            <button type="button" class="active" data-chart-tf="M">월</button>
+          </div>
+        </div>
+        <div id="detail-chart" class="d-chart" aria-label="주가 차트"></div>
+      </section>
       ${sections}
     `;
+    box.querySelector(".d-chart-tf")?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-chart-tf]");
+      if (!btn) return;
+      applyDetailChartTf(btn.dataset.chartTf);
+    });
     mountDetailChart(d.stock_code || code);
   } catch (err) {
     box.innerHTML = `<p class="empty">${escapeHtml(err.message)}</p>`;
