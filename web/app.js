@@ -216,17 +216,24 @@ const ABS_HELP = {
 function infoBtnHtml(text) {
   const t = (text || "").trim();
   if (!t) return "";
-  return `<button type="button" class="info-btn" aria-label="설명" data-info="${escapeHtml(t)}">ⓘ</button>`;
+  return `<button type="button" class="info-btn" aria-label="설명" aria-expanded="false" data-info="${escapeHtml(t)}">?</button>`;
 }
 
 let _infoPop = null;
 let _infoBtn = null;
 let _infoHideTimer = null;
 
+function tipHostFor(btn) {
+  return btn.closest("dialog") || document.body;
+}
+
 function hideInfoPop() {
   clearTimeout(_infoHideTimer);
   _infoHideTimer = null;
   if (_infoPop) {
+    try {
+      if (typeof _infoPop.hidePopover === "function") _infoPop.hidePopover();
+    } catch (_) {}
     _infoPop.remove();
     _infoPop = null;
   }
@@ -266,7 +273,14 @@ function showInfoPop(btn) {
   pop.className = "info-pop-float";
   pop.setAttribute("role", "tooltip");
   pop.textContent = text;
-  document.body.appendChild(pop);
+  // dialog(showModal)는 top layer라 body에 붙이면 툴팁이 모달 뒤에 가려짐
+  tipHostFor(btn).appendChild(pop);
+  if (typeof pop.showPopover === "function") {
+    try {
+      pop.setAttribute("popover", "manual");
+      pop.showPopover();
+    } catch (_) {}
+  }
   _infoPop = pop;
   _infoBtn = btn;
   btn.classList.add("open");
