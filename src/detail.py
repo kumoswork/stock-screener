@@ -335,14 +335,6 @@ def detail_dialog(stock_code: str) -> None:
                     )
                 )
             tiles.append(("현재가", _price(row.get("current_price")), "해당없음"))
-            if _has(row.get("range_position")):
-                tiles.append(
-                    (
-                        "52주위치(%)",
-                        format_metric_value("range_position", row.get("range_position")),
-                        "해당없음",
-                    )
-                )
             if _has(row.get("avg_52w")):
                 tiles.append(
                     (

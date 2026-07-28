@@ -603,15 +603,6 @@ def _build_detail(row: pd.Series) -> dict[str, Any]:
                             raw=row.get("market_cap"),
                         )
                     )
-                if _has(row.get("range_position")):
-                    tiles.append(
-                        _tile(
-                            "52주위치(%)",
-                            format_metric_value("range_position", row.get("range_position")),
-                            key="range_position",
-                            raw=row.get("range_position"),
-                        )
-                    )
                 if _has(row.get("avg_52w")):
                     tiles.append(
                         _tile(
