@@ -231,6 +231,17 @@ FILTER_SPECS: list[FilterSpec] = [
         "%",
     ),
     FilterSpec(
+        "range_position",
+        "52주위치(%)",
+        "주가 현위치",
+        "1년 최저~최고가 사이에서 지금 주가가 어디쯤인지예요. 0%면 저가, 100%면 고가예요. 우수: 20% 이하 · 매우우수: 10% 이하 · 구간으로 입력",
+        "range",
+        0.0,
+        20.0,
+        False,
+        "%",
+    ),
+    FilterSpec(
         "bottom_dwell_ratio",
         "52주 변동폭",
         "주가 현위치",
@@ -376,6 +387,18 @@ def badge_for_value(
         if value <= 0:
             return "보통"
         if value <= 20:
+            return "주의"
+        return "위험"
+
+    # 52주위치: 저~고 구간에서 낮은 쪽이 가점
+    if spec.key == "range_position":
+        if value <= 10:
+            return "매우우수"
+        if value <= 20:
+            return "우수"
+        if value <= 40:
+            return "보통"
+        if value <= 60:
             return "주의"
         return "위험"
 

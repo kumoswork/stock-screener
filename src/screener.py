@@ -333,6 +333,8 @@ def _excellent_hint(spec) -> str:
         return f"{good:g}%↑양호 · {excellent:g}%↑우수 · {very:g}%↑매우우수"
     if spec.key == "pct_from_avg_52w":
         return "-50%↓ 매우우수 · -20%↓ 우수 · 구간 필터"
+    if spec.key == "range_position":
+        return "10%↓ 매우우수 · 20%↓ 우수 · 구간 필터"
     if spec.key == "bottom_dwell_ratio":
         return "25%↓ 매우우수 · 50%↓ 우수 (낮을수록 박스 압축)"
     if spec.key == "debt_ratio":
