@@ -1595,7 +1595,7 @@ async function openDetail(code) {
           <div class="d-catbar-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="${escapeHtml(
             c.label
           )}">
-            <div class="d-catbar-fill" style="width:${pct}%"></div>
+            <div class="d-catbar-fill" data-pct="${pct}"></div>
           </div>
         </div>`;
       })
@@ -1665,6 +1665,14 @@ async function openDetail(code) {
       </section>
       ${sections}
     `;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        box.querySelectorAll(".d-catbar-fill").forEach((el, i) => {
+          el.style.transitionDelay = `${i * 70}ms`;
+          el.style.width = `${el.dataset.pct || 0}%`;
+        });
+      });
+    });
     box.querySelector(".d-chart-tf")?.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-chart-tf]");
       if (!btn) return;
