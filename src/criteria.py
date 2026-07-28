@@ -162,6 +162,17 @@ FILTER_SPECS: list[FilterSpec] = [
         True,
         "%",
     ),
+    FilterSpec(
+        "revenue_minus_debt_growth",
+        "매출−부채증가",
+        "수익/성장성 check!",
+        "매출 증가가 빚 증가보다 빠른지 봐요. 0 이상이면 성장이 빚보다 앞서요. 우수: 0%p 이상",
+        "min",
+        0.0,
+        None,
+        True,
+        "%p",
+    ),
     # 효율
     FilterSpec(
         "roa",
@@ -206,18 +217,6 @@ FILTER_SPECS: list[FilterSpec] = [
         None,
         True,
         "회",
-    ),
-    # check!!
-    FilterSpec(
-        "revenue_minus_debt_growth",
-        "매출−부채증가",
-        "check!!",
-        "매출 증가가 빚 증가보다 빠른지 봐요. 0 이상이면 성장이 빚보다 앞서요. 우수: 0%p 이상",
-        "min",
-        0.0,
-        None,
-        True,
-        "%p",
     ),
     # 주가
     FilterSpec(
@@ -459,12 +458,11 @@ BADGE_COLOR = {
 
 # 카테고리 가중치 (합=1.0). 주가 비중↓ · 펀더멘털 비중↑
 CATEGORY_WEIGHTS: dict[str, float] = {
-    "수익/성장성 check!": 0.28,
+    "수익/성장성 check!": 0.33,
     "안전성 check!": 0.23,
     "효율성 check!": 0.18,
     "B경제": 0.18,
     "주가 현위치": 0.08,
-    "check!!": 0.05,
 }
 
 CATEGORY_LABELS: dict[str, str] = {
@@ -472,7 +470,6 @@ CATEGORY_LABELS: dict[str, str] = {
     "안전성 check!": "안전성",
     "수익/성장성 check!": "수익/성장성",
     "효율성 check!": "효율성",
-    "check!!": "매출−부채",
     "주가 현위치": "주가 현위치",
 }
 

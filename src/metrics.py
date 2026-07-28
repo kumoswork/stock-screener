@@ -248,7 +248,7 @@ def compute_metrics_row(
         "roe": _pct_ratio(net_income, a.get("total_equity")),
         "inventory_turnover": _turnover(revenue, a.get("inventory")),
         "receivable_turnover": _turnover(revenue, a.get("receivables")),
-        # check!!
+        # 성장 질 (수익/성장성)
         "debt_growth": debt_growth,
         "revenue_minus_debt_growth": (
             revenue_growth - debt_growth

@@ -61,7 +61,6 @@ DETAIL_SECTION_ORDER: list[tuple[str, str | None]] = [
     ("안전성", "안전성 check!"),
     ("수익/성장성", "수익/성장성 check!"),
     ("효율성", "효율성 check!"),
-    ("매출증가율−부채증가율", "check!!"),
 ]
 
 DETAIL_HELP: dict[str, str] = {
