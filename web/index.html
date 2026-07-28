@@ -45,7 +45,12 @@
         </div>
 
         <div class="panel" id="panel-favorites" hidden>
-          <p class="muted">서버에 저장된 즐겨찾기입니다. 다른 브라우저·시크릿 창에서도 동일하게 보입니다.</p>
+          <p class="muted" id="fav-panel-copy">별(☆)을 누르거나 이 탭을 열면 포트폴리오 로그인이 필요합니다. 이름 + 숫자 4자리.</p>
+          <div id="fav-session" class="fav-session" hidden>
+            <p class="fav-session-name">포트폴리오 <strong id="fav-name-label"></strong></p>
+            <button type="button" class="btn" id="btn-portfolio-logout">로그아웃</button>
+          </div>
+          <button type="button" class="btn primary" id="btn-portfolio-login" hidden>로그인 / 만들기</button>
         </div>
 
         <p class="meta-cap" id="meta-cap"></p>
@@ -79,6 +84,23 @@
       <button value="close" class="btn ghost">닫기</button>
     </form>
     <div id="detail-content"></div>
+  </dialog>
+
+  <dialog id="portfolio-modal" class="portfolio-modal">
+    <form method="dialog" class="detail-close-row">
+      <button value="close" class="btn ghost">닫기</button>
+    </form>
+    <h2 class="portfolio-title">내 포트폴리오</h2>
+    <p class="muted portfolio-lead">이름과 숫자 4자리 비밀번호로 즐겨찾기를 개인별로 저장합니다.</p>
+    <label class="field-label" for="pf-name">포트폴리오 이름</label>
+    <input id="pf-name" type="text" maxlength="20" placeholder="예: kumo" autocomplete="username" />
+    <label class="field-label" for="pf-pin">비밀번호 (숫자 4자리)</label>
+    <input id="pf-pin" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]*" placeholder="••••" autocomplete="current-password" />
+    <p class="portfolio-error" id="pf-error" hidden></p>
+    <div class="portfolio-actions">
+      <button type="button" class="btn primary" id="pf-login">들어가기</button>
+      <button type="button" class="btn" id="pf-create">새로 만들기</button>
+    </div>
   </dialog>
 
   <script src="/static/app.js"></script>

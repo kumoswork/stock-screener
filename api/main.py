@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -34,11 +34,14 @@ from criteria import (  # noqa: E402
 )
 from filter_store import load_saved_filters, persist_filters  # noqa: E402
 from favorites_store import (  # noqa: E402
+    create_portfolio,
     load_favorite_items,
-    load_favorites,
     load_favorites_map,
+    login_portfolio,
     merge_favorite_items,
     persist_favorites,
+    resolve_token,
+    revoke_token,
 )
 from interpret import interpret_metric  # noqa: E402
 from price import load_price_metrics, price_cache_caption, fetch_chart_bars, fetch_current_quotes  # noqa: E402
@@ -347,16 +350,28 @@ WEB_FAVORITES_LIST_LABELS = {
 
 
 def _favorites_map_for_screen(body: ScreenBody) -> dict[str, dict[str, Any]]:
-    server = list(load_favorites_map().values())
+    """클라이언트가 보낸 포트폴리오 항목을 우선 사용 (서버 공유 목록 없음)."""
     if body.items:
         client = [x.model_dump() for x in body.items]
-        merged = merge_favorite_items(server, client)
-        return {x["code"]: x for x in merged}
-    fav_map = load_favorites_map()
+        return {x["code"]: x for x in merge_favorite_items([], client)}
+    fav_map: dict[str, dict[str, Any]] = {}
     for code in [str(c).zfill(6) for c in body.codes if str(c).strip()]:
-        if code not in fav_map:
-            fav_map[code] = {"code": code, "added_at": None, "price_at_add": None}
+        fav_map[code] = {"code": code, "added_at": None, "price_at_add": None}
     return fav_map
+
+
+def _token_from_request(request: Request) -> str | None:
+    auth = request.headers.get("authorization") or ""
+    if auth.lower().startswith("bearer "):
+        return auth[7:].strip() or None
+    return (request.headers.get("x-portfolio-token") or "").strip() or None
+
+
+def _portfolio_name_or_401(request: Request) -> str:
+    name = resolve_token(_token_from_request(request))
+    if not name:
+        raise HTTPException(401, "포트폴리오 로그인이 필요합니다.")
+    return name
 
 
 def _enrich_favorites_row(item: dict[str, Any], meta: dict[str, Any]) -> dict[str, Any]:
@@ -784,22 +799,58 @@ class FavoritesBody(BaseModel):
     items: list[FavoriteItemIn] = Field(default_factory=list)
 
 
+class PortfolioAuthBody(BaseModel):
+    name: str
+    pin: str
+
+
+@app.post("/api/portfolio/create")
+def api_portfolio_create(body: PortfolioAuthBody) -> dict[str, Any]:
+    data, err = create_portfolio(body.name, body.pin)
+    if err:
+        raise HTTPException(400, err)
+    return {"status": "ok", **data}
+
+
+@app.post("/api/portfolio/login")
+def api_portfolio_login(body: PortfolioAuthBody) -> dict[str, Any]:
+    data, err = login_portfolio(body.name, body.pin)
+    if err:
+        raise HTTPException(400, err)
+    return {"status": "ok", **data}
+
+
+@app.post("/api/portfolio/logout")
+def api_portfolio_logout(request: Request) -> dict[str, Any]:
+    revoke_token(_token_from_request(request))
+    return {"status": "ok"}
+
+
 @app.get("/api/favorites")
-def api_get_favorites() -> dict[str, Any]:
-    items = load_favorite_items()
+def api_get_favorites(request: Request) -> dict[str, Any]:
+    name = _portfolio_name_or_401(request)
+    items = load_favorite_items(name)
     codes = [x["code"] for x in items]
-    return {"items": items, "codes": codes, "count": len(codes)}
+    return {"items": items, "codes": codes, "count": len(codes), "name": name}
 
 
 @app.post("/api/favorites")
-def api_save_favorites(body: FavoritesBody) -> dict[str, Any]:
+def api_save_favorites(request: Request, body: FavoritesBody) -> dict[str, Any]:
+    name = _portfolio_name_or_401(request)
     if body.items:
         raw = [x.model_dump() for x in body.items]
     else:
         raw = list(body.codes or [])
-    items, where = persist_favorites(raw)
+    items, where = persist_favorites(raw, name=name)
     codes = [x["code"] for x in items]
-    return {"status": "ok", "where": where, "items": items, "codes": codes, "count": len(codes)}
+    return {
+        "status": "ok",
+        "where": where,
+        "items": items,
+        "codes": codes,
+        "count": len(codes),
+        "name": name,
+    }
 
 
 @app.get("/")

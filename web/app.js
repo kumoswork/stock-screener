@@ -1,11 +1,13 @@
 /* KUMO$ screener SPA */
 const FAV_KEY = "kumo_favorites";
+const PORTFOLIO_KEY = "kumo_portfolio";
 const FILTER_KEY = "kumo_filters";
 let autosaveTimer = null;
 let suppressAutosave = false;
 let sidebarHistoryPushed = false;
 let favSyncTimer = null;
 let quoteReqId = 0;
+let pendingFavCode = null;
 const GRADE_CLASS = { A: "hot", B: "watch", C: "neutral", D: "warn" };
 
 const state = {
@@ -17,6 +19,7 @@ const state = {
   rows: [],
   sortKey: "attractiveness",
   sortDir: "desc",
+  portfolio: null, // { name, token }
   resultsByMode: {
     filter: null,
     search: null,
@@ -55,7 +58,144 @@ function normalizeFavItem(raw) {
   return { code, added_at: added, price_at_add: price };
 }
 
+function loadPortfolioSession() {
+  try {
+    const raw = localStorage.getItem(PORTFOLIO_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (data?.name && data?.token) return { name: String(data.name), token: String(data.token) };
+  } catch (_) {}
+  return null;
+}
+
+function savePortfolioSession(session) {
+  state.portfolio = session;
+  try {
+    if (session?.name && session?.token) {
+      localStorage.setItem(PORTFOLIO_KEY, JSON.stringify(session));
+    } else {
+      localStorage.removeItem(PORTFOLIO_KEY);
+    }
+  } catch (_) {}
+  updateFavoritesPanel();
+}
+
+function clearPortfolioSession() {
+  savePortfolioSession(null);
+  saveFavoriteItems([]);
+}
+
+function isPortfolioLoggedIn() {
+  return !!(state.portfolio?.token && state.portfolio?.name);
+}
+
+function updateFavoritesPanel() {
+  const session = $("fav-session");
+  const loginBtn = $("btn-portfolio-login");
+  const copy = $("fav-panel-copy");
+  const label = $("fav-name-label");
+  if (!session || !loginBtn || !copy) return;
+  if (isPortfolioLoggedIn()) {
+    session.hidden = false;
+    loginBtn.hidden = true;
+    if (label) label.textContent = state.portfolio.name;
+    copy.textContent = "이 브라우저에 로그인된 포트폴리오입니다. 다른 기기에서는 같은 이름·비밀번호로 들어가면 됩니다.";
+  } else {
+    session.hidden = true;
+    loginBtn.hidden = false;
+    copy.textContent = "별(☆)을 누르거나 이 탭을 열면 포트폴리오 로그인이 필요합니다. 이름 + 숫자 4자리.";
+  }
+}
+
+function showPortfolioError(msg) {
+  const el = $("pf-error");
+  if (!el) return;
+  if (!msg) {
+    el.hidden = true;
+    el.textContent = "";
+    return;
+  }
+  el.hidden = false;
+  el.textContent = msg;
+}
+
+function openPortfolioModal(opts = {}) {
+  pendingFavCode = opts.pendingCode ? padCode(opts.pendingCode) : null;
+  const modal = $("portfolio-modal");
+  showPortfolioError("");
+  const nameInput = $("pf-name");
+  const pinInput = $("pf-pin");
+  if (nameInput && !nameInput.value) {
+    try {
+      const remembered = localStorage.getItem("kumo_portfolio_name");
+      if (remembered) nameInput.value = remembered;
+    } catch (_) {}
+  }
+  if (pinInput) pinInput.value = "";
+  modal.showModal();
+  setTimeout(() => (nameInput?.value ? pinInput : nameInput)?.focus(), 30);
+}
+
+function closePortfolioModal() {
+  const modal = $("portfolio-modal");
+  if (modal?.open) modal.close();
+  pendingFavCode = null;
+}
+
+async function authPortfolio(mode) {
+  const name = ($("pf-name")?.value || "").trim();
+  const pin = ($("pf-pin")?.value || "").trim();
+  showPortfolioError("");
+  if (!name || name.length < 2) {
+    showPortfolioError("이름을 2자 이상 입력해 주세요.");
+    return;
+  }
+  if (!/^\d{4}$/.test(pin)) {
+    showPortfolioError("비밀번호는 숫자 4자리여야 합니다.");
+    return;
+  }
+  const path = mode === "create" ? "/api/portfolio/create" : "/api/portfolio/login";
+  try {
+    const res = await api(path, {
+      method: "POST",
+      body: JSON.stringify({ name, pin }),
+    });
+    savePortfolioSession({ name: res.name, token: res.token });
+    try {
+      localStorage.setItem("kumo_portfolio_name", res.name);
+    } catch (_) {}
+    const items = Array.isArray(res.items) ? res.items.map(normalizeFavItem).filter(Boolean) : [];
+    saveFavoriteItems(items);
+    const pending = pendingFavCode;
+    closePortfolioModal();
+    if (pending) {
+      await toggleFav(pending, { skipAuth: true });
+    } else if (state.mode === "favorites") {
+      runScreen();
+    } else {
+      renderList(state.rows, { refreshQuotes: false });
+    }
+    setStatus(`포트폴리오 '${res.name}' 로그인됨`);
+  } catch (err) {
+    showPortfolioError(err.message || "로그인에 실패했습니다.");
+  }
+}
+
+async function logoutPortfolio() {
+  try {
+    await api("/api/portfolio/logout", { method: "POST", body: "{}" });
+  } catch (_) {}
+  clearPortfolioSession();
+  if (state.mode === "favorites") {
+    renderList([]);
+    setStatus("포트폴리오에서 로그아웃했습니다.");
+  } else {
+    renderList(state.rows, { refreshQuotes: false });
+  }
+}
+
 function loadFavoriteItems() {
+  if (!isPortfolioLoggedIn()) return [];
   try {
     const raw = localStorage.getItem(FAV_KEY);
     if (!raw) return [];
@@ -128,6 +268,7 @@ function priceForFavoriteToggle(code) {
 }
 
 async function syncFavoritesToServer(items) {
+  if (!isPortfolioLoggedIn()) return items || [];
   const uniq = saveFavoriteItems(items);
   try {
     const res = await api("/api/favorites", {
@@ -142,6 +283,7 @@ async function syncFavoritesToServer(items) {
 }
 
 function scheduleFavoritesSync(items) {
+  if (!isPortfolioLoggedIn()) return;
   clearTimeout(favSyncTimer);
   favSyncTimer = setTimeout(() => {
     syncFavoritesToServer(items);
@@ -150,6 +292,10 @@ function scheduleFavoritesSync(items) {
 
 async function toggleFav(code, opts = {}) {
   const c = padCode(code);
+  if (!opts.skipAuth && !isPortfolioLoggedIn()) {
+    openPortfolioModal({ pendingCode: c });
+    return;
+  }
   let items = loadFavoriteItems();
   const idx = items.findIndex((i) => i.code === c);
   if (idx >= 0) {
@@ -180,22 +326,23 @@ async function toggleFav(code, opts = {}) {
 }
 
 async function loadFavoritesFromServer() {
-  const local = loadFavoriteItems();
+  state.portfolio = loadPortfolioSession();
+  updateFavoritesPanel();
+  if (!isPortfolioLoggedIn()) {
+    saveFavoriteItems([]);
+    return [];
+  }
   try {
     const res = await api("/api/favorites");
     const server = Array.isArray(res.items)
       ? res.items.map(normalizeFavItem).filter(Boolean)
-      : Array.isArray(res.codes)
-        ? res.codes.map((c) => normalizeFavItem({ code: c })).filter(Boolean)
-        : [];
-    const merged = mergeFavoriteItems(local, server);
-    saveFavoriteItems(merged);
-    if (JSON.stringify(merged) !== JSON.stringify(server)) {
-      scheduleFavoritesSync(merged);
-    }
-    return merged;
-  } catch (_) {}
-  return local;
+      : [];
+    saveFavoriteItems(server);
+    return server;
+  } catch (_) {
+    clearPortfolioSession();
+    return [];
+  }
 }
 
 function setStatus(msg) {
@@ -246,8 +393,12 @@ function restoreSidebar() {
 }
 
 async function api(path, opts) {
+  const headers = { "Content-Type": "application/json", ...(opts?.headers || {}) };
+  if (state.portfolio?.token) {
+    headers.Authorization = `Bearer ${state.portfolio.token}`;
+  }
   const res = await fetch(path, {
-    headers: { "Content-Type": "application/json", ...(opts?.headers || {}) },
+    headers,
     ...opts,
   });
   if (!res.ok) {
@@ -256,7 +407,10 @@ async function api(path, opts) {
       const j = await res.json();
       detail = j.detail || detail;
     } catch (_) {}
-    throw new Error(detail);
+    if (res.status === 401 && state.portfolio) {
+      clearPortfolioSession();
+    }
+    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
   }
   return res.json();
 }
@@ -1747,7 +1901,10 @@ async function runScreen(extra = {}) {
 function setMode(mode) {
   if (state.mode === mode) {
     // 같은 탭 재클릭: 캐시가 있으면 유지
-    if (mode === "favorites") runScreen();
+    if (mode === "favorites") {
+      if (!isPortfolioLoggedIn()) openPortfolioModal();
+      else runScreen();
+    }
     return;
   }
   // 진행 중 조회 결과를 무시하도록 무효화
@@ -1763,6 +1920,12 @@ function setMode(mode) {
   $("filter-actions").hidden = mode !== "filter";
 
   if (mode === "favorites") {
+    if (!isPortfolioLoggedIn()) {
+      renderList([]);
+      setStatus("포트폴리오 로그인이 필요합니다.");
+      openPortfolioModal();
+      return;
+    }
     runScreen();
     return;
   }
@@ -1782,6 +1945,23 @@ function wireEvents() {
   wireInfoTips();
   document.querySelectorAll(".tab").forEach((btn) => {
     btn.addEventListener("click", () => setMode(btn.dataset.mode));
+  });
+
+  $("btn-portfolio-login")?.addEventListener("click", () => openPortfolioModal());
+  $("btn-portfolio-logout")?.addEventListener("click", () => logoutPortfolio());
+  $("pf-login")?.addEventListener("click", () => authPortfolio("login"));
+  $("pf-create")?.addEventListener("click", () => authPortfolio("create"));
+  $("pf-pin")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      authPortfolio("login");
+    }
+  });
+  $("pf-name")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      $("pf-pin")?.focus();
+    }
   });
 
   $("list-head").addEventListener("click", (e) => {

@@ -605,6 +605,64 @@ input:focus {
   height: 0;
 }
 .detail-modal::backdrop { background: rgba(0, 0, 0, 0.6); }
+
+.portfolio-modal {
+  width: min(380px, calc(100vw - 1.5rem));
+  border: 1px solid #3a414d;
+  border-radius: 14px;
+  background: #2f343c;
+  color: #e8eaed;
+  padding: 1rem 1.15rem 1.25rem;
+}
+.portfolio-modal::backdrop { background: rgba(0, 0, 0, 0.6); }
+.portfolio-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+.portfolio-lead {
+  margin: 0 0 0.9rem;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+.portfolio-modal .field-label {
+  display: block;
+  margin: 0.55rem 0 0.28rem;
+}
+.portfolio-modal input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #4a5568;
+  border-radius: 8px;
+  background: #1e232b;
+  color: #e8eaed;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.95rem;
+}
+.portfolio-error {
+  color: var(--bad);
+  font-size: 0.82rem;
+  margin: 0.55rem 0 0;
+}
+.portfolio-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.95rem;
+}
+.portfolio-actions .btn { flex: 1; }
+.fav-session {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-top: 0.35rem;
+}
+.fav-session-name {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #c5ccd8;
+}
+.fav-session-name strong { color: #fff; }
+
 .detail-close-row {
   display: flex;
   justify-content: flex-end;
