@@ -7,8 +7,8 @@ from html import escape
 import pandas as pd
 
 GRADE_UI = {
-    "A": ("적극 관심", "hot"),
-    "B": ("관심", "watch"),
+    "A": ("최우수", "hot"),
+    "B": ("우수", "watch"),
     "C": ("보통", "neutral"),
     "D": ("주의", "warn"),
 }
