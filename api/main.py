@@ -566,15 +566,6 @@ def _build_detail(row: pd.Series) -> dict[str, Any]:
                     )
         else:
             if cat_key == "주가 현위치":
-                if _has(row.get("market_cap")):
-                    tiles.append(
-                        _tile(
-                            "시가총액",
-                            format_metric_value("market_cap", row.get("market_cap")),
-                            key="market_cap",
-                            raw=row.get("market_cap"),
-                        )
-                    )
                 if _has(row.get("current_price")):
                     tiles.append(
                         _tile(
@@ -582,6 +573,15 @@ def _build_detail(row: pd.Series) -> dict[str, Any]:
                             format_metric_value("current_price", row.get("current_price")),
                             key="current_price",
                             raw=row.get("current_price"),
+                        )
+                    )
+                if _has(row.get("market_cap")):
+                    tiles.append(
+                        _tile(
+                            "시가총액",
+                            format_metric_value("market_cap", row.get("market_cap")),
+                            key="market_cap",
+                            raw=row.get("market_cap"),
                         )
                     )
                 if _has(row.get("range_position")):
