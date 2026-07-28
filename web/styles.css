@@ -656,6 +656,10 @@ input:focus {
   gap: 0.55rem;
   margin-top: 0.35rem;
 }
+.fav-session[hidden],
+#btn-portfolio-login[hidden] {
+  display: none !important;
+}
 .fav-session-name {
   margin: 0;
   font-size: 0.9rem;
