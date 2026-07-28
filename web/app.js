@@ -147,7 +147,11 @@ async function authPortfolio(mode) {
   const pin = ($("pf-pin")?.value || "").trim();
   showPortfolioError("");
   if (!name || name.length < 2) {
-    showPortfolioError("이름을 2자 이상 입력해 주세요.");
+    showPortfolioError("이름(영문)을 2자 이상 입력해 주세요.");
+    return;
+  }
+  if (!/^[A-Za-z0-9_-]{2,20}$/.test(name)) {
+    showPortfolioError("이름은 영문/숫자/_/- 만 가능합니다.");
     return;
   }
   if (!/^\d{4}$/.test(pin)) {

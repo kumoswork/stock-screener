@@ -24,7 +24,7 @@ SESSIONS_PATH = DATA_DIR / "portfolio_sessions.json"
 GITHUB_PATH = "data/portfolios_store.json"
 
 SESSION_TTL_SEC = 60 * 60 * 24 * 30  # 30 days
-_NAME_RE = re.compile(r"^[A-Za-z0-9가-힣_\-]{2,20}$")
+_NAME_RE = re.compile(r"^[A-Za-z0-9_\-]{2,20}$")
 _PIN_RE = re.compile(r"^\d{4}$")
 
 
@@ -79,7 +79,7 @@ def _slug(name: str) -> str:
 def validate_credentials(name: str, pin: str) -> str | None:
     n = normalize_portfolio_name(name)
     if not _NAME_RE.match(n):
-        return "이름은 2~20자, 한글/영문/숫자/_/- 만 가능합니다."
+        return "이름은 영문 2~20자 (영문/숫자/_/-)로 입력해 주세요."
     if not _PIN_RE.match(str(pin or "")):
         return "비밀번호는 숫자 4자리여야 합니다."
     return None
@@ -278,7 +278,7 @@ def create_portfolio(name: str, pin: str) -> tuple[dict[str, Any] | None, str | 
     n = normalize_portfolio_name(name)
     store = _load_store()
     if _get_portfolio(store, n) is not None:
-        return None, "이미 있는 포트폴리오 이름입니다. 들어가기를 이용해 주세요."
+        return None, "이미 있는 이름입니다. 들어가기를 이용해 주세요."
     salt = secrets.token_hex(8)
     entry = {
         "name": n,
