@@ -279,7 +279,7 @@ input:focus {
   line-height: 1.45;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
   pointer-events: auto;
-  white-space: normal;
+  white-space: pre-line;
   word-break: keep-all;
 }
 .filter-inputs {

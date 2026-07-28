@@ -32,7 +32,6 @@ def interpret_metric(
 ) -> str:
     """Return a short Korean reading for the current value."""
     v = _num(raw)
-    note = _badge_note(badge)
     parts: list[str] = []
 
     if key == "inventory_months" and v is not None:
@@ -208,6 +207,4 @@ def interpret_metric(
     elif display and display != "-":
         parts.append(f"현재 값은 {display}예요.")
 
-    if note:
-        parts.append(note)
     return " ".join(parts).strip()

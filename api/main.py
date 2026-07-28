@@ -119,6 +119,21 @@ for _spec in FILTER_SPECS:
             DETAIL_HELP[_spec.label] = f"{base} · {hint}"
 
 
+def _split_help_lines(base: str) -> list[str]:
+    """설명 문장과 우수/양호 기준을 줄로 나눕니다."""
+    import re
+
+    text = (base or "").strip()
+    if not text:
+        return []
+    m = re.search(r"(?<=[.!?…])\s+(?=((매우)?우수|양호)\b)", text)
+    if not m:
+        return [text]
+    head = text[: m.start()].strip()
+    tail = text[m.start() :].strip()
+    return [x for x in (head, tail) if x]
+
+
 def _tile(
     label: str,
     value: str,
@@ -129,10 +144,13 @@ def _tile(
 ) -> dict[str, str]:
     base = (DETAIL_HELP.get(label, "") or "").strip()
     reading = interpret_metric(key, raw, value, badge) if key else ""
-    if reading and base:
-        help_text = f"{reading} · {base}"
-    else:
-        help_text = reading or base
+    lines: list[str] = []
+    if reading:
+        lines.append(reading)
+    if badge and badge not in ("해당없음", "—", "-"):
+        lines.append(f"평가: {badge}.")
+    lines.extend(_split_help_lines(base))
+    help_text = "\n".join(lines)
     return {
         "label": label,
         "value": value,
