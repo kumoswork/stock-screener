@@ -1668,7 +1668,7 @@ async function openDetail(code) {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         box.querySelectorAll(".d-catbar-fill").forEach((el, i) => {
-          el.style.transitionDelay = `${i * 70}ms`;
+          el.style.transitionDelay = `${i * 110}ms`;
           el.style.width = `${el.dataset.pct || 0}%`;
         });
       });

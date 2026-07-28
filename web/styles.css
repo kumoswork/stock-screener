@@ -837,7 +837,7 @@ input:focus {
   border-radius: inherit;
   width: 0;
   transform-origin: left center;
-  transition: width 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: width 1.2s cubic-bezier(0.22, 1, 0.36, 1);
   background: #9aa3b2;
 }
 .d-catbar[data-tone="good"] .d-catbar-fill { background: var(--good); }
