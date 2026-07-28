@@ -103,7 +103,7 @@ function updateFavoritesPanel() {
   } else {
     session.hidden = true;
     loginBtn.hidden = false;
-    copy.textContent = "별(☆)을 누르거나 이 탭을 열면 포트폴리오 로그인이 필요합니다. 이름 + 숫자 4자리.";
+    copy.textContent = "별(☆)을 누르거나 로그인하면 내 포트폴리오에 저장됩니다. 이름 + 숫자 4자리. (서버 재배포 후에도 유지)";
   }
 }
 

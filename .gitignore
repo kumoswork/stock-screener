@@ -6,6 +6,7 @@ data/*.db
 *.db
 data/portfolios/
 data/portfolio_sessions.json
+data/portfolios_store.json
 .venv/
 venv/
 !data/corp_codes_listed.csv
