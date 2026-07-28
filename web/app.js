@@ -1035,7 +1035,6 @@ function badgeClass(badge) {
 
 function badgeLabel(badge) {
   if (badge === "보통") return "양호";
-  if (badge === "위험") return "약세";
   if (badge === "해당없음") return "—";
   return badge || "—";
 }
