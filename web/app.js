@@ -1582,12 +1582,23 @@ async function openDetail(code) {
         ? String(d.current_price_num)
         : "";
     const chips = (d.category_chips || [])
-      .map(
-        (c) => `<div class="d-chip">
-          <div class="lab">${escapeHtml(c.label)} (${c.weight_pct}%)</div>
-          <div class="val">${c.score == null ? "—" : `${c.score}점`}</div>
-        </div>`
-      )
+      .map((c) => {
+        const score = c.score == null || !Number.isFinite(Number(c.score)) ? null : Number(c.score);
+        const pct = score == null ? 0 : Math.max(0, Math.min(100, score));
+        const tone = score == null ? "muted" : score >= 70 ? "good" : score >= 40 ? "mid" : "bad";
+        const scoreText = score == null ? "—" : `${score}점`;
+        return `<div class="d-catbar" data-tone="${tone}">
+          <div class="d-catbar-head">
+            <span class="lab">${escapeHtml(c.label)} <em>(${c.weight_pct}%)</em></span>
+            <span class="val">${escapeHtml(scoreText)}</span>
+          </div>
+          <div class="d-catbar-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="${escapeHtml(
+            c.label
+          )}">
+            <div class="d-catbar-fill" style="width:${pct}%"></div>
+          </div>
+        </div>`;
+      })
       .join("");
     const sections = (d.sections || [])
       .map((sec) => {
@@ -1628,7 +1639,7 @@ async function openDetail(code) {
         <div class="d-score-label">통합 점수 (카테고리 가중)</div>
         <div class="d-score">${d.attractiveness ?? "—"}점</div>
       </div>
-      <div class="d-chips">${chips}</div>
+      <div class="d-catbars">${chips}</div>
       <section class="d-chart-section">
         <div class="d-cat-head">
           <div class="d-cat-title">차트</div>
