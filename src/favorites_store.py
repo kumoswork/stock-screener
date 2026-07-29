@@ -135,17 +135,93 @@ def _load_store_local() -> dict[str, Any]:
 
 
 def _load_store_github() -> dict[str, Any] | None:
+    """raw → (있으면) Contents API 순으로 로드."""
     try:
         import requests
 
         repo = os.getenv("GITHUB_REPO", "kumoswork/stock-screener")
-        url = f"https://raw.githubusercontent.com/{repo}/main/{GITHUB_PATH}"
+        # 1) public raw
+        url = f"https://raw.githubusercontent.com/{repo}/main/{GITHUB_PATH}?t={int(time.time())}"
         resp = requests.get(url, timeout=10)
-        if resp.status_code != 200:
+        if resp.status_code == 200:
+            return _parse_store(resp.json())
+
+        # 2) authenticated Contents API (private / not yet on raw CDN)
+        token = os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN")
+        if not token:
             return None
-        return _parse_store(resp.json())
+        api = f"https://api.github.com/repos/{repo}/contents/{GITHUB_PATH}"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
+        get_resp = requests.get(api, headers=headers, params={"ref": "main"}, timeout=20)
+        if get_resp.status_code != 200:
+            return None
+        payload = get_resp.json()
+        content = payload.get("content")
+        if not content:
+            return None
+        raw = base64.b64decode(content).decode("utf-8")
+        return _parse_store(json.loads(raw))
     except Exception:
         return None
+
+
+def _merge_store_portfolios(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
+    """두 스토어의 portfolios를 합칩니다. 같은 이름은 updated_at / item 수가 더 풍부한 쪽 우선."""
+    out = _empty_store()
+    for src in (a, b):
+        for slug, raw in (src.get("portfolios") or {}).items():
+            if not isinstance(raw, dict):
+                continue
+            prev = out["portfolios"].get(slug)
+            if not prev:
+                out["portfolios"][slug] = raw
+                continue
+            prev_items = _normalize_items(prev.get("items"))
+            raw_items = _normalize_items(raw.get("items"))
+            merged_items = merge_favorite_items(prev_items, raw_items)
+            # keep pin from whichever already has one; prefer newer updated_at for metadata
+            prev_u = str(prev.get("updated_at") or "")
+            raw_u = str(raw.get("updated_at") or "")
+            base = raw if raw_u >= prev_u else prev
+            out["portfolios"][slug] = {
+                "name": base.get("name") or prev.get("name") or raw.get("name"),
+                "salt": base.get("salt") or prev.get("salt") or raw.get("salt"),
+                "pin_hash": base.get("pin_hash") or prev.get("pin_hash") or raw.get("pin_hash"),
+                "items": merged_items,
+                "updated_at": max(prev_u, raw_u) or date.today().isoformat(),
+            }
+    return out
+
+
+def _load_store(*, allow_remote: bool = True) -> dict[str, Any]:
+    local = _load_store_local()
+    if not allow_remote:
+        return local
+    remote = _load_store_github()
+    if not remote:
+        return local
+    if not local.get("portfolios"):
+        try:
+            _write_json(STORE_PATH, remote)
+        except OSError:
+            pass
+        return remote
+    merged = _merge_store_portfolios(local, remote)
+    # 로컬이 비어 있지 않아도 원격과 합쳐 디스크에 반영 (재배포 복구)
+    try:
+        if merged != local:
+            _write_json(STORE_PATH, merged)
+    except OSError:
+        pass
+    return merged
+
+
+def github_sync_configured() -> bool:
+    return bool(os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN"))
 
 
 def _save_store_github(store: dict[str, Any]) -> str | None:
@@ -183,22 +259,6 @@ def _save_store_github(store: dict[str, Any]) -> str | None:
     return f"github_error:{put_resp.status_code}"
 
 
-def _load_store(*, allow_remote: bool = True) -> dict[str, Any]:
-    local = _load_store_local()
-    if local.get("portfolios"):
-        return local
-    if not allow_remote:
-        return local
-    remote = _load_store_github()
-    if remote and remote.get("portfolios"):
-        try:
-            _write_json(STORE_PATH, remote)
-        except OSError:
-            pass
-        return remote
-    return local
-
-
 def _persist_store(store: dict[str, Any]) -> str:
     cleaned = _parse_store(store)
     _write_json(STORE_PATH, cleaned)
@@ -207,6 +267,8 @@ def _persist_store(store: dict[str, Any]) -> str:
         return "local+github"
     if remote and str(remote).startswith("github_error"):
         return f"local ({remote})"
+    if not github_sync_configured():
+        return "local (no GITHUB_TOKEN)"
     return "local"
 
 
@@ -288,7 +350,7 @@ def create_portfolio(name: str, pin: str) -> tuple[dict[str, Any] | None, str | 
         "updated_at": date.today().isoformat(),
     }
     store.setdefault("portfolios", {})[_slug(n)] = entry
-    _persist_store(store)
+    where = _persist_store(store)
     token = _issue_token(n)
     return {
         "token": token,
@@ -296,6 +358,8 @@ def create_portfolio(name: str, pin: str) -> tuple[dict[str, Any] | None, str | 
         "items": [],
         "codes": [],
         "count": 0,
+        "where": where,
+        "durable": "github" in where,
     }, None
 
 
@@ -321,6 +385,8 @@ def login_portfolio(name: str, pin: str) -> tuple[dict[str, Any] | None, str | N
         "items": items,
         "codes": [x["code"] for x in items],
         "count": len(items),
+        "where": "local+github" if github_sync_configured() else "local (no GITHUB_TOKEN)",
+        "durable": github_sync_configured(),
     }, None
 
 

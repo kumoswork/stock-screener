@@ -35,6 +35,7 @@ from criteria import (  # noqa: E402
 from filter_store import load_saved_filters, persist_filters  # noqa: E402
 from favorites_store import (  # noqa: E402
     create_portfolio,
+    github_sync_configured,
     load_favorite_items,
     load_favorites_map,
     login_portfolio,

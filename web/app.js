@@ -1,5 +1,6 @@
 /* KUMO$ screener SPA */
 const FAV_KEY = "kumo_favorites";
+const FAV_BACKUP_KEY = "kumo_favorites_backup";
 const PORTFOLIO_KEY = "kumo_portfolio";
 const FILTER_KEY = "kumo_filters";
 let autosaveTimer = null;
@@ -81,8 +82,48 @@ function savePortfolioSession(session) {
 }
 
 function clearPortfolioSession() {
+  // 백업은 유지 — 서버 재배포로 날아도 같은 이름으로 복구 가능
   savePortfolioSession(null);
-  saveFavoriteItems([]);
+  try {
+    localStorage.removeItem(FAV_KEY);
+  } catch (_) {}
+}
+
+function loadBackupMap() {
+  try {
+    const raw = localStorage.getItem(FAV_BACKUP_KEY);
+    if (!raw) return {};
+    const data = JSON.parse(raw);
+    return data && typeof data === "object" ? data : {};
+  } catch (_) {}
+  return {};
+}
+
+function loadBackupItems(name) {
+  const key = String(name || "").trim().toLowerCase();
+  if (!key) return [];
+  const map = loadBackupMap();
+  const raw = map[key];
+  if (!Array.isArray(raw)) return [];
+  return raw.map(normalizeFavItem).filter(Boolean);
+}
+
+function saveBackupItems(name, items) {
+  const key = String(name || "").trim().toLowerCase();
+  if (!key) return;
+  const map = loadBackupMap();
+  const out = [];
+  const seen = new Set();
+  for (const raw of items || []) {
+    const it = normalizeFavItem(raw);
+    if (!it || seen.has(it.code)) continue;
+    seen.add(it.code);
+    out.push(it);
+  }
+  map[key] = out;
+  try {
+    localStorage.setItem(FAV_BACKUP_KEY, JSON.stringify(map));
+  } catch (_) {}
 }
 
 function isPortfolioLoggedIn() {
@@ -99,11 +140,11 @@ function updateFavoritesPanel() {
     session.hidden = false;
     loginBtn.hidden = true;
     if (label) label.textContent = state.portfolio.name;
-    copy.textContent = "이 브라우저에 로그인된 포트폴리오입니다. 다른 기기에서는 같은 이름·비밀번호로 들어가면 됩니다.";
+    copy.textContent = "이 브라우저에 로그인된 포트폴리오입니다. 즐겨찾기는 이 기기에도 백업됩니다.";
   } else {
     session.hidden = true;
     loginBtn.hidden = false;
-    copy.textContent = "별(☆)을 누르거나 로그인하면 내 포트폴리오에 저장됩니다. 이름 + 숫자 4자리. (서버 재배포 후에도 유지)";
+    copy.textContent = "별(☆)을 누르면 로그인합니다. 이름(영문) + 숫자 4자리. 같은 브라우저면 재배포 후에도 백업으로 복구됩니다.";
   }
 }
 
@@ -168,8 +209,13 @@ async function authPortfolio(mode) {
     try {
       localStorage.setItem("kumo_portfolio_name", res.name);
     } catch (_) {}
-    const items = Array.isArray(res.items) ? res.items.map(normalizeFavItem).filter(Boolean) : [];
+    const serverItems = Array.isArray(res.items) ? res.items.map(normalizeFavItem).filter(Boolean) : [];
+    const backupItems = loadBackupItems(res.name);
+    const items = mergeFavoriteItems(backupItems, serverItems);
     saveFavoriteItems(items);
+    if (items.length && JSON.stringify(items) !== JSON.stringify(serverItems)) {
+      scheduleFavoritesSync(items);
+    }
     const pending = pendingFavCode;
     closePortfolioModal();
     if (pending) {
@@ -179,7 +225,13 @@ async function authPortfolio(mode) {
     } else {
       renderList(state.rows, { refreshQuotes: false });
     }
-    setStatus(`포트폴리오 '${res.name}' 로그인됨`);
+    let msg = `포트폴리오 '${res.name}' 로그인됨`;
+    if (res.durable === false || (res.where && !String(res.where).includes("github"))) {
+      msg += " · 서버 영구저장 미설정(브라우저 백업만)";
+    } else if (backupItems.length && items.length > serverItems.length) {
+      msg += ` · 브라우저 백업에서 ${items.length - serverItems.length}종목 복구`;
+    }
+    setStatus(msg);
   } catch (err) {
     showPortfolioError(err.message || "로그인에 실패했습니다.");
   }
@@ -227,6 +279,7 @@ function saveFavoriteItems(items) {
   try {
     localStorage.setItem(FAV_KEY, JSON.stringify({ items: out }));
   } catch (_) {}
+  if (state.portfolio?.name) saveBackupItems(state.portfolio.name, out);
   return out;
 }
 
