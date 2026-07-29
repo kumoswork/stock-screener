@@ -252,6 +252,17 @@ FILTER_SPECS: list[FilterSpec] = [
         False,
         "%",
     ),
+    FilterSpec(
+        "attractiveness",
+        "종합 점수",
+        "종합",
+        "모든 카테고리 점수를 가중 평균한 종합 매력도 점수예요. 0~100점. 우수: 70점 이상",
+        "min",
+        70.0,
+        None,
+        True,
+        "점",
+    ),
 ]
 
 SPEC_BY_KEY = {s.key: s for s in FILTER_SPECS}
@@ -507,7 +518,7 @@ def score_row(row: pd.Series | dict[str, Any]) -> dict[str, Any]:
     cat_badge_sums: dict[str, float] = {c: 0.0 for c in categories_order()}
     cat_badge_counts: dict[str, int] = {c: 0 for c in categories_order()}
 
-    for spec in FILTER_SPECS:
+    for spec in (s for s in FILTER_SPECS if s.category != "종합"):
         val = row.get(spec.key) if hasattr(row, "get") else row[spec.key] if spec.key in row else None
         try:
             if val is not None and not (isinstance(val, float) and pd.isna(val)):

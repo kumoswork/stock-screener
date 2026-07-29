@@ -480,6 +480,7 @@ def api_screen(body: ScreenBody) -> dict[str, Any]:
     mode = body.mode or "filter"
     price_f: dict[str, tuple[float | None, float | None]] = {}
     price_abs: dict[str, dict[str, Any]] = {}
+    score_filter: tuple[float | None, float | None] | None = None
     if mode == "search":
         code = str(body.code or "").zfill(6)
         if not code or code == "000000":
@@ -500,6 +501,7 @@ def api_screen(body: ScreenBody) -> dict[str, Any]:
                 float(lo) if lo is not None else None,
                 float(hi) if hi is not None else None,
             )
+        score_filter = raw_filters.pop("attractiveness", None)
         fin_f, price_f = split_filters(raw_filters)
         candidates = apply_range_filters(view, fin_f)
         fin_abs = {k: v for k, v in (body.abs or {}).items() if k not in PRICE_ABS_KEYS}
@@ -523,6 +525,15 @@ def api_screen(body: ScreenBody) -> dict[str, Any]:
             merged = apply_range_filters(merged, price_f)
 
     scored = attach_scores(merged)
+
+    if mode == "filter" and score_filter is not None:
+        lo, hi = score_filter
+        col = scored["attractiveness"]
+        if lo is not None:
+            scored = scored[col >= lo]
+        if hi is not None:
+            scored = scored[col <= hi]
+
     if mode == "favorites":
         fav_map = _favorites_map_for_screen(body)
         total = int(len(scored))
