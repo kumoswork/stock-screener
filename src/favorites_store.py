@@ -359,7 +359,7 @@ def create_portfolio(name: str, pin: str) -> tuple[dict[str, Any] | None, str | 
         "codes": [],
         "count": 0,
         "where": where,
-        "durable": "github" in where,
+        "durable": "github" in where or STORE_PATH.exists(),
     }, None
 
 
@@ -371,7 +371,14 @@ def login_portfolio(name: str, pin: str) -> tuple[dict[str, Any] | None, str | N
     store = _load_store()
     data = _get_portfolio(store, n)
     if data is None:
-        return None, "없는 포트폴리오입니다. 새로 만들기를 이용해 주세요."
+        # 재배포로 서버 파일이 비었을 때: 같은 이름+PIN으로 재생성
+        # (브라우저 백업이 있으면 클라이언트가 종목을 다시 올려 줌)
+        created, cerr = create_portfolio(n, pin)
+        if cerr:
+            return None, cerr
+        assert created is not None
+        created["recovered"] = True
+        return created, None
     salt = str(data.get("salt") or "")
     expect = str(data.get("pin_hash") or "")
     got = _hash_pin(pin, salt)
@@ -386,7 +393,8 @@ def login_portfolio(name: str, pin: str) -> tuple[dict[str, Any] | None, str | N
         "codes": [x["code"] for x in items],
         "count": len(items),
         "where": "local+github" if github_sync_configured() else "local (no GITHUB_TOKEN)",
-        "durable": github_sync_configured(),
+        "durable": github_sync_configured() or STORE_PATH.exists(),
+        "recovered": False,
     }, None
 
 

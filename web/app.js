@@ -226,10 +226,13 @@ async function authPortfolio(mode) {
       renderList(state.rows, { refreshQuotes: false });
     }
     let msg = `포트폴리오 '${res.name}' 로그인됨`;
-    if (res.durable === false || (res.where && !String(res.where).includes("github"))) {
-      msg += " · 서버 영구저장 미설정(브라우저 백업만)";
-    } else if (backupItems.length && items.length > serverItems.length) {
+    if (res.recovered) {
+      msg += " · 서버에서 다시 생성";
+    }
+    if (backupItems.length && items.length > serverItems.length) {
       msg += ` · 브라우저 백업에서 ${items.length - serverItems.length}종목 복구`;
+    } else if (res.durable === false || (res.where && !String(res.where).includes("github") && !String(res.where).includes("local"))) {
+      msg += " · 서버 영구저장 미설정(브라우저 백업만)";
     }
     setStatus(msg);
   } catch (err) {

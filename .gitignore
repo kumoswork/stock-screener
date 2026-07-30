@@ -6,13 +6,13 @@ data/*.db
 *.db
 data/portfolios/
 data/portfolio_sessions.json
-data/portfolios_store.json
 .venv/
 venv/
 !data/corp_codes_listed.csv
 !data/financials_snapshot.csv
 !data/financials_snapshot_meta.txt
 !data/saved_filters.json
+!data/portfolios_store.json
 !data/screener_snapshot.csv
 !data/screener_snapshot_meta.txt
 !data/.gitkeep

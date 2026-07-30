@@ -1,0 +1,17 @@
+{
+  "portfolios": {
+    "kumos": {
+      "name": "kumos",
+      "salt": "c232d11cb07787bf",
+      "pin_hash": "75756280fe80bf32c0996ca5a0249876ef1cefd81d52a888d2557730a949d400",
+      "items": [
+        {
+          "code": "005930",
+          "added_at": "2026-07-28",
+          "price_at_add": 1.0
+        }
+      ],
+      "updated_at": "2026-07-28"
+    }
+  }
+}
