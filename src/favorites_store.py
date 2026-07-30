@@ -339,8 +339,26 @@ def create_portfolio(name: str, pin: str) -> tuple[dict[str, Any] | None, str | 
         return None, err
     n = normalize_portfolio_name(name)
     store = _load_store()
-    if _get_portfolio(store, n) is not None:
-        return None, "이미 있는 이름입니다. 들어가기를 이용해 주세요."
+    existing = _get_portfolio(store, n)
+    if existing is not None:
+        # 같은 이름 + 같은 PIN이면 로그인과 동일하게 처리 (시드/재배포 후 혼동 방지)
+        salt = str(existing.get("salt") or "")
+        expect = str(existing.get("pin_hash") or "")
+        got = _hash_pin(pin, salt)
+        if salt and expect and hmac.compare_digest(expect, got):
+            items = _normalize_items(existing.get("items"))
+            token = _issue_token(str(existing.get("name") or n))
+            return {
+                "token": token,
+                "name": str(existing.get("name") or n),
+                "items": items,
+                "codes": [x["code"] for x in items],
+                "count": len(items),
+                "where": "local+github" if github_sync_configured() else "local (no GITHUB_TOKEN)",
+                "durable": github_sync_configured() or STORE_PATH.exists(),
+                "recovered": False,
+            }, None
+        return None, "이미 있는 이름입니다. 비밀번호가 기억나지 않으면 다른 이름으로 만들거나, 초기화 후 다시 만들어 주세요."
     salt = secrets.token_hex(8)
     entry = {
         "name": n,
