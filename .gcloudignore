@@ -1,0 +1,13 @@
+.venv/
+venv/
+.git/
+__pycache__/
+*.pyc
+.cache/
+.env
+*.db
+data/*.db
+scripts/debug_*.py
+push.bat
+git_known_hosts
+.git*
