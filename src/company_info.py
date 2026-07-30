@@ -49,8 +49,9 @@ def fetch_company_summary(stock_code: str) -> str | None:
             timeout=(2, 8),
         )
         resp.raise_for_status()
-        resp.encoding = "euc-kr"
-        block = _SUMMARY_BLOCK_RE.search(resp.text)
+        # 네이버 금융은 UTF-8(charset=UTF-8). euc-kr로 읽으면 한글이 깨짐.
+        html = resp.content.decode("utf-8")
+        block = _SUMMARY_BLOCK_RE.search(html)
         if block:
             parts: list[str] = []
             for raw in _P_RE.findall(block.group(1)):
