@@ -1,3 +1,11 @@
 {
-  "portfolios": {}
+  "portfolios": {
+    "kumos": {
+      "name": "kumos",
+      "salt": "e1ac8819f0ee5c02",
+      "pin_hash": "9b0fa0122e742a888e55c3a0f74fccc5bb2fef45885faaa6c8821d91f099fe65",
+      "items": [],
+      "updated_at": "2026-07-30"
+    }
+  }
 }
