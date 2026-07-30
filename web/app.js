@@ -183,9 +183,10 @@ function closePortfolioModal() {
   pendingFavCode = null;
 }
 
-async function authPortfolio(mode) {
+async function authPortfolio(mode, opts = {}) {
   const name = ($("pf-name")?.value || "").trim();
   const pin = ($("pf-pin")?.value || "").trim();
+  const force = !!opts.force;
   showPortfolioError("");
   if (!name || name.length < 2) {
     showPortfolioError("이름(영문)을 2자 이상 입력해 주세요.");
@@ -203,7 +204,7 @@ async function authPortfolio(mode) {
   try {
     const res = await api(path, {
       method: "POST",
-      body: JSON.stringify({ name, pin }),
+      body: JSON.stringify({ name, pin, force }),
     });
     savePortfolioSession({ name: res.name, token: res.token });
     try {
@@ -236,7 +237,16 @@ async function authPortfolio(mode) {
     }
     setStatus(msg);
   } catch (err) {
-    showPortfolioError(err.message || "로그인에 실패했습니다.");
+    const msg = err.message || "로그인에 실패했습니다.";
+    if (mode === "create" && !force && msg.includes("이미 있는 이름")) {
+      const ok = window.confirm(
+        `'${name}' 이(가) 서버에 이미 있습니다.\n비밀번호를 모르면 초기화하고 지금 PIN으로 다시 만들까요?\n(같은 브라우저면 즐겨찾기는 백업으로 복구됩니다)`
+      );
+      if (ok) {
+        return authPortfolio("create", { force: true });
+      }
+    }
+    showPortfolioError(msg);
   }
 }
 

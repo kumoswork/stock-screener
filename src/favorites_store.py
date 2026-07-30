@@ -333,7 +333,9 @@ def _get_portfolio(store: dict[str, Any], name: str) -> dict[str, Any] | None:
     return store.get("portfolios", {}).get(_slug(name))
 
 
-def create_portfolio(name: str, pin: str) -> tuple[dict[str, Any] | None, str | None]:
+def create_portfolio(
+    name: str, pin: str, *, force: bool = False
+) -> tuple[dict[str, Any] | None, str | None]:
     err = validate_credentials(name, pin)
     if err:
         return None, err
@@ -341,7 +343,6 @@ def create_portfolio(name: str, pin: str) -> tuple[dict[str, Any] | None, str | 
     store = _load_store()
     existing = _get_portfolio(store, n)
     if existing is not None:
-        # 같은 이름 + 같은 PIN이면 로그인과 동일하게 처리 (시드/재배포 후 혼동 방지)
         salt = str(existing.get("salt") or "")
         expect = str(existing.get("pin_hash") or "")
         got = _hash_pin(pin, salt)
@@ -358,7 +359,10 @@ def create_portfolio(name: str, pin: str) -> tuple[dict[str, Any] | None, str | 
                 "durable": github_sync_configured() or STORE_PATH.exists(),
                 "recovered": False,
             }, None
-        return None, "이미 있는 이름입니다. 비밀번호가 기억나지 않으면 다른 이름으로 만들거나, 초기화 후 다시 만들어 주세요."
+        if not force:
+            return None, "이미 있는 이름입니다. 비밀번호를 모르면 '새로 만들기'를 다시 눌러 초기화할 수 있습니다."
+        # force: wipe and recreate with the new PIN
+        store.setdefault("portfolios", {}).pop(_slug(n), None)
     salt = secrets.token_hex(8)
     entry = {
         "name": n,
@@ -378,6 +382,7 @@ def create_portfolio(name: str, pin: str) -> tuple[dict[str, Any] | None, str | 
         "count": 0,
         "where": where,
         "durable": "github" in where or STORE_PATH.exists(),
+        "recovered": bool(force and existing is not None),
     }, None
 
 

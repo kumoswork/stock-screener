@@ -814,11 +814,12 @@ class FavoritesBody(BaseModel):
 class PortfolioAuthBody(BaseModel):
     name: str
     pin: str
+    force: bool = False
 
 
 @app.post("/api/portfolio/create")
 def api_portfolio_create(body: PortfolioAuthBody) -> dict[str, Any]:
-    data, err = create_portfolio(body.name, body.pin)
+    data, err = create_portfolio(body.name, body.pin, force=bool(body.force))
     if err:
         raise HTTPException(400, err)
     return {"status": "ok", **data}
