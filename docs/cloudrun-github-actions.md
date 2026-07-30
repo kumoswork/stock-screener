@@ -54,6 +54,17 @@ PAT 만들기: https://github.com/settings/tokens → Generate new token (classi
 2. https://github.com/kumoswork/stock-screener/actions 에서 초록 체크
 3. 로그 맨 아래 `Deployed: https://...run.app` 주소 확인
 
+### 배포가 `PERMISSION_DENIED` / `default service account` 로 실패할 때
+
+로컬에서 **한 번만** 실행 (프로젝트 소유자 계정):
+
+```cmd
+cd stock-screener
+scripts\setup_gcp_ci_permissions.bat
+```
+
+그다음 Actions → **Re-run all jobs**.
+
 ## 4. 로컬 수동 배포 (선택)
 
 Secrets 설정 전이거나 급할 때만:
