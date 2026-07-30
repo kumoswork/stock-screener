@@ -23,6 +23,9 @@ gcloud projects add-iam-policy-binding %PROJECT% --member="serviceAccount:%SA_EM
 gcloud projects add-iam-policy-binding %PROJECT% --member="serviceAccount:%SA_EMAIL%" --role="roles/storage.admin"
 gcloud projects add-iam-policy-binding %PROJECT% --member="serviceAccount:%SA_EMAIL%" --role="roles/serviceusage.serviceUsageConsumer"
 
+REM API는 소유자 계정으로 1회만 켜 두면 됩니다 (아래). 배포 SA는 Consumer면 충분.
+gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com --project=%PROJECT%
+
 gcloud iam service-accounts keys create github-sa-key.json --iam-account=%SA_EMAIL%
 ```
 

@@ -57,14 +57,6 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Enable required APIs
-        run: |
-          gcloud services enable \
-            run.googleapis.com \
-            artifactregistry.googleapis.com \
-            cloudbuild.googleapis.com \
-            --project "${{ secrets.GCP_PROJECT_ID }}"
-
       - name: Deploy to Cloud Run
         env:
           PORTFOLIO_TOKEN: ${{ secrets.PORTFOLIO_GITHUB_TOKEN }}
