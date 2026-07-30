@@ -525,6 +525,10 @@ function infoBtnHtml(text) {
   return `<button type="button" class="info-btn" aria-label="설명" aria-expanded="false" data-info="${escapeHtml(t)}"></button>`;
 }
 
+function infoTipTarget(el) {
+  return el?.closest?.(".info-btn, [data-info].has-tip") || null;
+}
+
 let _infoPop = null;
 let _infoBtn = null;
 let _infoHideTimer = null;
@@ -603,7 +607,7 @@ function wireInfoTips() {
   document.addEventListener(
     "click",
     (e) => {
-      const btn = e.target.closest(".info-btn");
+      const btn = infoTipTarget(e.target);
       if (btn) {
         e.preventDefault();
         e.stopPropagation();
@@ -617,12 +621,12 @@ function wireInfoTips() {
   );
   document.addEventListener("pointerover", (e) => {
     if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
-    const btn = e.target.closest(".info-btn");
+    const btn = infoTipTarget(e.target);
     if (btn) showInfoPop(btn);
   });
   document.addEventListener("pointerout", (e) => {
     if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
-    const btn = e.target.closest(".info-btn");
+    const btn = infoTipTarget(e.target);
     if (!btn) return;
     const to = e.relatedTarget;
     if (to && (btn.contains(to) || _infoPop?.contains(to))) return;
@@ -1851,7 +1855,11 @@ async function openDetail(code) {
       .join("");
     box.innerHTML = `
       <div class="d-title">
-        <span class="name">${escapeHtml(d.corp_name)}</span>
+        <span class="name${d.company_summary ? " has-tip" : ""}"${
+          d.company_summary
+            ? ` data-info="${escapeHtml(d.company_summary)}" aria-label="기업 소개"`
+            : ""
+        }>${escapeHtml(d.corp_name)}</span>
         <button type="button" class="btn star${isFav(d.stock_code) ? " on" : ""}" data-detail-fav="${escapeHtml(
           d.stock_code
         )}" title="즐겨찾기">${isFav(d.stock_code) ? "★" : "☆"}</button>
@@ -2225,7 +2233,7 @@ function wireEvents() {
     clearDetailChart();
   });
   $("detail-modal").addEventListener("click", (e) => {
-    if (e.target.closest(".info-btn, .info-pop-float")) return;
+    if (e.target.closest(".info-btn, .info-pop-float, [data-info].has-tip")) return;
     const modal = $("detail-modal");
     const rect = modal.getBoundingClientRect();
     const inside =

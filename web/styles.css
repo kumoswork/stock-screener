@@ -698,6 +698,10 @@ input:focus {
   text-shadow: 0 0 12px rgba(255, 229, 102, 0.55);
 }
 .d-title .name { color: #f2f5fa; }
+.d-title .name.has-tip {
+  cursor: help;
+  border-bottom: 1px dotted rgba(255, 255, 255, 0.35);
+}
 .d-title .code { color: #8b95a8; font-weight: 500; font-size: 1rem; margin-left: 0; }
 .d-chart-section {
   margin: 0.85rem 0 0.35rem;

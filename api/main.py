@@ -45,6 +45,7 @@ from favorites_store import (  # noqa: E402
     revoke_token,
 )
 from interpret import interpret_metric  # noqa: E402
+from company_info import fetch_company_summary  # noqa: E402
 from price import load_price_metrics, price_cache_caption, fetch_chart_bars, fetch_current_quotes  # noqa: E402
 from screener import (  # noqa: E402
     apply_range_filters,
@@ -685,6 +686,7 @@ def _build_detail(row: pd.Series) -> dict[str, Any]:
     return {
         "stock_code": code,
         "corp_name": name,
+        "company_summary": fetch_company_summary(code),
         "tradingview": tradingview_chart_url(code),
         "current_price": (
             format_metric_value("current_price", row.get("current_price"))
