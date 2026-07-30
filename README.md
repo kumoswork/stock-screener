@@ -49,12 +49,20 @@ $env:GITHUB_TOKEN = "ghp_xxxxxxxx"   # 권장
 .\scripts\deploy_cloudrun.ps1 -ProjectId YOUR_PROJECT_ID
 ```
 
-스크립트가 API 활성화 → 이미지 빌드 → Cloud Run 배포(`min-instances=0`, 메모리 1Gi, 서울)까지 합니다.  
-끝나면 URL과 `/health` 주소를 출력합니다.
-
-동일 설정의 Cloud Build 정의: [`cloudbuild.yaml`](cloudbuild.yaml) (선택).
-
 ### 배포 후 확인 체크리스트
+
+`main`에 push할 때마다 Cloud Run이 자동 배포됩니다.  
+**최초 1회만** GitHub Secrets를 넣으면, 이후에는 토큰·배포 명령을 매번 칠 필요 없습니다.
+
+자세한 설정: [`docs/cloudrun-github-actions.md`](docs/cloudrun-github-actions.md)
+
+| Secret | 설명 |
+|--------|------|
+| `GCP_PROJECT_ID` | `stockscreener-504006` |
+| `GCP_SA_KEY` | GCP 서비스 계정 JSON 키 |
+| `PORTFOLIO_GITHUB_TOKEN` | GitHub PAT (`repo`) — 포트폴리오 저장용 |
+
+### 수동 배포 (급할 때만)
 
 1. `https://…run.app/health` → `{"status":"ok"}`
 2. `https://…run.app` → UI 로드
