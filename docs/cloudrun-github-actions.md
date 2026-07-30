@@ -38,6 +38,11 @@ gcloud iam service-accounts keys create github-sa-key.json --iam-account=%SA_EMA
 | `GCP_SA_KEY` | `github-sa-key.json` **파일 전체 내용** (복사·붙여넣기) |
 | `PORTFOLIO_GITHUB_TOKEN` | GitHub PAT (`repo` 권한). 포트폴리오 영구저장용 |
 
+**`GCP_SA_KEY` 주의:** 메모장으로 `github-sa-key.json`을 열어 `{` 로 시작하는 **전체 JSON**을 복사하세요.  
+파일 경로(`C:\...`)나 일부만 넣으면 `credentials_json` 오류가 납니다.
+
+Secrets를 넣기 **전에** 돌아간 워크플로는 실패합니다. Secrets 저장 후 **Re-run all jobs** 하세요.
+
 PAT 만들기: https://github.com/settings/tokens → Generate new token (classic) → `repo` 체크
 
 `PORTFOLIO_GITHUB_TOKEN`은 Cloud Run 서버에 `GITHUB_TOKEN`으로 들어가서, 재배포 후에도 즐겨찾기가 GitHub에 저장됩니다.  

@@ -1,5 +1,5 @@
 # main push → Cloud Run 자동 배포 (서울, scale-to-zero)
-# 최초 1회: GitHub Secrets 설정 (README "자동 배포" 참고)
+# 최초 1회: GitHub Secrets 설정 (docs/cloudrun-github-actions.md)
 
 name: deploy-cloudrun
 
@@ -24,6 +24,28 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
+      - name: Check required secrets
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          missing=0
+          if [ -z "${GCP_PROJECT_ID}" ]; then
+            echo "::error::Missing secret GCP_PROJECT_ID (e.g. stockscreener-504006)"
+            missing=1
+          fi
+          if [ -z "${GCP_SA_KEY}" ]; then
+            echo "::error::Missing secret GCP_SA_KEY — paste the FULL github-sa-key.json contents (starts with {)"
+            missing=1
+          elif ! printf '%s' "${GCP_SA_KEY}" | head -c1 | grep -q '{'; then
+            echo "::error::GCP_SA_KEY must be the full JSON key file, not a file path"
+            missing=1
+          fi
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+          echo "Required secrets present."
+
       - name: Checkout
         uses: actions/checkout@v4
 
