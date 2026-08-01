@@ -282,6 +282,54 @@ input:focus {
   white-space: pre-line;
   word-break: keep-all;
 }
+.chart-preview-pop {
+  position: fixed;
+  z-index: 2147483645;
+  width: min(340px, calc(100vw - 24px));
+  padding: 0.55rem 0.6rem 0.65rem;
+  border-radius: 12px;
+  background: #151920;
+  border: 1px solid #4a5568;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+}
+.chart-preview-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+  padding: 0 0.1rem;
+}
+.chart-preview-head strong {
+  color: #f2f5fa;
+  font-size: 0.86rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chart-preview-head span {
+  color: #8b95a8;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.chart-preview-chart {
+  width: 100%;
+  height: 168px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #12151b;
+}
+.chart-preview-msg {
+  margin: 0;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: #8b95a8;
+  font-size: 0.8rem;
+}
 .filter-inputs {
   display: none !important;
   align-items: center;

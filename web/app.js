@@ -654,6 +654,202 @@ function wireInfoTips() {
   window.addEventListener("resize", () => hideInfoPop());
 }
 
+const _chartBarCache = new Map();
+let _chartPreviewPop = null;
+let _chartPreviewChart = null;
+let _chartPreviewCode = null;
+let _chartPreviewShowTimer = null;
+let _chartPreviewHideTimer = null;
+let _chartPreviewReq = 0;
+
+function canHoverChartPreview() {
+  return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+}
+
+function hideChartPreview() {
+  clearTimeout(_chartPreviewShowTimer);
+  clearTimeout(_chartPreviewHideTimer);
+  _chartPreviewShowTimer = null;
+  _chartPreviewHideTimer = null;
+  _chartPreviewCode = null;
+  _chartPreviewReq += 1;
+  if (_chartPreviewChart) {
+    try {
+      _chartPreviewChart.remove();
+    } catch (_) {}
+    _chartPreviewChart = null;
+  }
+  if (_chartPreviewPop) {
+    _chartPreviewPop.remove();
+    _chartPreviewPop = null;
+  }
+}
+
+function placeChartPreview(anchor, pop) {
+  const r = anchor.getBoundingClientRect();
+  const pad = 12;
+  const pw = pop.offsetWidth || 340;
+  const ph = pop.offsetHeight || 220;
+  let left = r.right + 12;
+  let top = r.top;
+  if (left + pw > window.innerWidth - pad) left = r.left - pw - 12;
+  if (left < pad) left = pad;
+  if (top + ph > window.innerHeight - pad) top = Math.max(pad, window.innerHeight - ph - pad);
+  if (top < pad) top = pad;
+  pop.style.left = `${Math.round(left)}px`;
+  pop.style.top = `${Math.round(top)}px`;
+}
+
+async function loadChartBars(code) {
+  const key = padCode(code);
+  if (_chartBarCache.has(key)) return _chartBarCache.get(key);
+  const data = await api(`/api/chart/${encodeURIComponent(key)}`);
+  const bars = data.bars || [];
+  _chartBarCache.set(key, bars);
+  if (_chartBarCache.size > 80) {
+    const first = _chartBarCache.keys().next().value;
+    _chartBarCache.delete(first);
+  }
+  return bars;
+}
+
+async function mountPreviewChart(host, code) {
+  const req = ++_chartPreviewReq;
+  host.innerHTML = `<p class="chart-preview-msg">불러오는 중…</p>`;
+  try {
+    const [LW, bars] = await Promise.all([loadLightweightCharts(), loadChartBars(code)]);
+    if (req !== _chartPreviewReq || !_chartPreviewPop) return;
+    if (!bars.length) {
+      host.innerHTML = `<p class="chart-preview-msg">차트 없음</p>`;
+      return;
+    }
+    host.innerHTML = "";
+    if (_chartPreviewChart) {
+      try {
+        _chartPreviewChart.remove();
+      } catch (_) {}
+      _chartPreviewChart = null;
+    }
+    const chart = LW.createChart(host, {
+      width: host.clientWidth || 320,
+      height: host.clientHeight || 168,
+      layout: {
+        background: { color: "#151920" },
+        textColor: "#9aa3b5",
+        fontSize: 10,
+      },
+      grid: {
+        vertLines: { color: "rgba(58, 65, 77, 0.28)" },
+        horzLines: { color: "rgba(58, 65, 77, 0.28)" },
+      },
+      rightPriceScale: {
+        borderVisible: false,
+        scaleMargins: { top: 0.08, bottom: 0.08 },
+      },
+      timeScale: { borderVisible: false },
+      crosshair: { mode: LW.CrosshairMode.Hidden },
+      handleScroll: false,
+      handleScale: false,
+    });
+    const series = chart.addCandlestickSeries({
+      upColor: "#f07178",
+      downColor: "#7eb6ff",
+      borderUpColor: "#f07178",
+      borderDownColor: "#7eb6ff",
+      wickUpColor: "#f07178",
+      wickDownColor: "#7eb6ff",
+    });
+    const monthly = aggregateBars(bars, "M");
+    series.setData(monthly);
+    chart.timeScale().fitContent();
+    _chartPreviewChart = chart;
+  } catch (err) {
+    if (req !== _chartPreviewReq || !_chartPreviewPop) return;
+    host.innerHTML = `<p class="chart-preview-msg">${escapeHtml(err.message || "불러오기 실패")}</p>`;
+  }
+}
+
+function showChartPreview(anchor) {
+  if (!canHoverChartPreview()) return;
+  const code = padCode(anchor.dataset.detail || anchor.dataset.code);
+  if (!code || code === "000000") return;
+  if ($("detail-modal")?.open) return;
+  clearTimeout(_chartPreviewHideTimer);
+  if (_chartPreviewCode === code && _chartPreviewPop) {
+    placeChartPreview(anchor, _chartPreviewPop);
+    return;
+  }
+  clearTimeout(_chartPreviewShowTimer);
+  _chartPreviewShowTimer = setTimeout(() => {
+    if (!anchor.isConnected) return;
+    if ($("detail-modal")?.open) return;
+    hideChartPreview();
+    const name = anchor.dataset.name || code;
+    const pop = document.createElement("div");
+    pop.className = "chart-preview-pop";
+    pop.setAttribute("role", "tooltip");
+    pop.innerHTML = `
+      <div class="chart-preview-head">
+        <strong>${escapeHtml(name)}</strong>
+        <span>${escapeHtml(code)} · 월봉</span>
+      </div>
+      <div class="chart-preview-chart"></div>
+    `;
+    document.body.appendChild(pop);
+    _chartPreviewPop = pop;
+    _chartPreviewCode = code;
+    placeChartPreview(anchor, pop);
+    mountPreviewChart(pop.querySelector(".chart-preview-chart"), code).then(() => {
+      if (_chartPreviewPop === pop) placeChartPreview(anchor, pop);
+    });
+  }, 220);
+}
+
+function scheduleHideChartPreview() {
+  clearTimeout(_chartPreviewShowTimer);
+  _chartPreviewShowTimer = null;
+  clearTimeout(_chartPreviewHideTimer);
+  _chartPreviewHideTimer = setTimeout(() => hideChartPreview(), 120);
+}
+
+function wireChartPreview() {
+  document.addEventListener("pointerover", (e) => {
+    if (!canHoverChartPreview()) return;
+    if (e.target.closest("[data-fav], [data-chart], .info-btn, .info-pop-float, .chart-preview-pop")) return;
+    const row = e.target.closest(".row[data-detail], .mcard[data-detail]");
+    if (!row) return;
+    showChartPreview(row);
+  });
+  document.addEventListener("pointerout", (e) => {
+    if (!canHoverChartPreview()) return;
+    const row = e.target.closest(".row[data-detail], .mcard[data-detail]");
+    if (!row) return;
+    const to = e.relatedTarget;
+    if (to && (row.contains(to) || to.closest?.(".chart-preview-pop"))) return;
+    scheduleHideChartPreview();
+  });
+  document.addEventListener(
+    "pointerover",
+    (e) => {
+      if (!_chartPreviewPop || !e.target.closest(".chart-preview-pop")) return;
+      clearTimeout(_chartPreviewHideTimer);
+    },
+    true
+  );
+  document.addEventListener(
+    "pointerout",
+    (e) => {
+      if (!_chartPreviewPop || !e.target.closest(".chart-preview-pop")) return;
+      const to = e.relatedTarget;
+      if (to && (to.closest?.(".chart-preview-pop") || to.closest?.(".row[data-detail], .mcard[data-detail]"))) return;
+      scheduleHideChartPreview();
+    },
+    true
+  );
+  window.addEventListener("scroll", () => hideChartPreview(), true);
+  window.addEventListener("resize", () => hideChartPreview());
+}
+
 function buildFiltersUI(meta) {
   const absRoot = $("abs-filters");
   const listRoot = $("filter-list");
@@ -1207,6 +1403,7 @@ function renderList(rows, opts = {}) {
   const cards = $("cards-body");
 
   if (!state.rows.length) {
+    hideChartPreview();
     body.innerHTML = `<p class="empty">결과가 없습니다.</p>`;
     cards.innerHTML = `<p class="empty">결과가 없습니다.</p>`;
     return;
@@ -1217,7 +1414,7 @@ function renderList(rows, opts = {}) {
       const on = isFav(r.stock_code);
       const fav = on ? "★" : "☆";
       const cells = cols.map((c) => renderCell(r, c)).join("");
-      return `<div class="row" data-code="${escapeHtml(r.stock_code)}" data-detail="${escapeHtml(r.stock_code)}" role="button" tabindex="0">
+      return `<div class="row" data-code="${escapeHtml(r.stock_code)}" data-detail="${escapeHtml(r.stock_code)}" data-name="${escapeHtml(r.corp_name)}" role="button" tabindex="0">
         <button type="button" class="btn star${on ? " on" : ""}" data-fav="${escapeHtml(r.stock_code)}" title="즐겨찾기">${fav}</button>
         ${cells}
       </div>`;
@@ -1234,7 +1431,7 @@ function renderList(rows, opts = {}) {
               r.fav_price_at_add || "-"
             )} · <span class="${favReturnClass(r)}">${escapeHtml(r.fav_return_pct_display || "-")}</span></p>`
           : "";
-      return `<div class="mcard" data-code="${escapeHtml(r.stock_code)}" data-detail="${escapeHtml(r.stock_code)}" role="button" tabindex="0">
+      return `<div class="mcard" data-code="${escapeHtml(r.stock_code)}" data-detail="${escapeHtml(r.stock_code)}" data-name="${escapeHtml(r.corp_name)}" role="button" tabindex="0">
         <div class="mcard-main">
           <div class="mcard-head">
             <div class="mcard-name-row">
@@ -1798,6 +1995,7 @@ async function mountDetailChart(code) {
 async function openDetail(code) {
   const modal = $("detail-modal");
   const box = $("detail-content");
+  hideChartPreview();
   clearDetailChart();
   hideInfoPop();
   box.innerHTML = `<p class="muted">불러오는 중…</p>`;
@@ -2021,6 +2219,7 @@ function setMode(mode) {
 
 function wireEvents() {
   wireInfoTips();
+  wireChartPreview();
   document.querySelectorAll(".tab").forEach((btn) => {
     btn.addEventListener("click", () => setMode(btn.dataset.mode));
   });
